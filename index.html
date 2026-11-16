@@ -1,0 +1,1633 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="横顔撮影">
+<title>横顔撮影</title>
+<style>
+:root{--bg:#0f1115;--panel:#171a21;--line:#2a2f3a;--fg:#e8eaf0;--mut:#9aa3b2;--ok:#2ecc71;--ng:#ff5a5f;--acc:#4dabff;--warn:#ffb020;--eye:#ff5c8a;--ear:#4dabff}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-family:-apple-system,"Hiragino Sans","Hiragino Kaku Gothic ProN",sans-serif;font-size:15px;overscroll-behavior:none}
+body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.screen{display:none;position:fixed;inset:0}
+.screen.active{display:flex}
+.screen.scroll.active{display:block;overflow:auto;-webkit-overflow-scrolling:touch}
+.wrap{max-width:980px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-right)) 40px max(16px,env(safe-area-inset-left))}
+h1{font-size:22px;margin:4px 0 12px}h2{font-size:17px;margin:18px 0 8px}h3{font-size:14px;margin:10px 0 6px;color:var(--mut)}
+button,select,input{font:inherit;color:var(--fg)}
+button{background:#283041;border:1px solid #3a4459;border-radius:10px;padding:9px 12px;min-height:42px;cursor:pointer}
+button:disabled{opacity:.4}
+button.primary{background:var(--acc);border-color:var(--acc);color:#03111f;font-weight:700}
+button.on{background:#1d6b42;border-color:#2ecc71}
+button.danger{background:#5a1e24;border-color:#a33}
+button.sm{min-height:34px;padding:5px 9px;font-size:13px}
+select,input[type=text],input[type=number]{background:#10131a;border:1px solid #3a4459;border-radius:8px;padding:8px;min-height:40px}
+input[type=number]{width:90px}
+label.f{display:flex;align-items:center;gap:8px;margin:6px 0;flex-wrap:wrap}
+label.f>span{min-width:150px;color:var(--mut)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:10px 0}
+.mut{color:var(--mut)}.small{font-size:12px}
+.ok{color:var(--ok)}.ng{color:var(--ng)}.warn{color:var(--warn)}
+ul.check{list-style:none;padding:0;margin:0}ul.check li{padding:4px 0}
+#libStatus{font-size:13px}
+/* shoot */
+#shoot{flex-direction:row}
+#stage{position:relative;flex:0 0 70%;background:#000;overflow:hidden}
+#stage video,#stage canvas{position:absolute;inset:0;width:100%;height:100%}
+#stage video{object-fit:contain}
+#guide{position:absolute;left:8px;right:8px;top:max(8px,env(safe-area-inset-top));text-align:center;font-size:clamp(18px,3.6vw,32px);font-weight:800;line-height:1.25;text-shadow:0 2px 6px #000,0 0 2px #000;pointer-events:none}
+#guide.ok{color:var(--ok)}
+#holdbar{position:absolute;left:0;bottom:0;height:8px;width:0;background:var(--ok);transition:width .08s linear}
+#warn{position:absolute;left:8px;right:8px;bottom:14px;text-align:center;color:var(--warn);font-weight:700;text-shadow:0 1px 4px #000;pointer-events:none;font-size:14px}
+#toast{position:fixed;left:50%;top:18px;transform:translateX(-50%);background:#000c;border:1px solid #444;padding:10px 16px;border-radius:10px;z-index:50;display:none;max-width:80vw;text-align:center}
+.side{flex:1;min-width:0;overflow:auto;padding:8px max(8px,env(safe-area-inset-right)) 12px 8px;background:var(--panel);border-left:1px solid var(--line)}
+table.cond{width:100%;border-collapse:collapse;font-size:12px;margin:4px 0 8px}
+table.cond td{padding:3px 3px;border-bottom:1px solid var(--line);vertical-align:top}
+table.cond td.v{font-variant-numeric:tabular-nums;white-space:nowrap}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--ng)}
+.dot.ok{background:var(--ok)}.dot.na{background:#555}
+.btns{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.btns .full{grid-column:1/-1}
+#sessInfo{font-size:12px;color:var(--mut);margin-bottom:4px}
+/* editor */
+#edit{flex-direction:row}
+#edStage{position:relative;flex:0 0 70%;background:#000;overflow:hidden}
+#edCv{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+#loupe{position:absolute;right:10px;top:10px;width:150px;height:150px;border:2px solid #fff;border-radius:8px;background:#000;pointer-events:none}
+#edHint{position:absolute;left:8px;bottom:8px;right:170px;font-size:12px;color:#ddd;text-shadow:0 1px 3px #000;pointer-events:none}
+#refCv{width:100%;aspect-ratio:4/3;background:#000;border-radius:8px;display:block}
+.seg{display:flex;gap:4px;flex-wrap:wrap}.seg button{flex:1}
+#rotate{position:fixed;inset:0;background:#000e;z-index:60;display:none;align-items:center;justify-content:center;text-align:center;font-size:20px;padding:30px}
+@media (orientation:portrait){body.insess #rotate{display:flex}}
+</style>
+</head>
+<body>
+
+<!-- ===== 開始画面 ===== -->
+<section id="start" class="screen scroll active">
+ <div class="wrap">
+  <h1>横顔撮影</h1>
+  <div id="libStatus" class="mut">ライブラリを読み込み中…</div>
+
+  <div class="card">
+   <label class="f"><span>参加者ID</span><input id="inPid" type="text" placeholder="P01" autocapitalize="characters" autocomplete="off"></label>
+   <label class="f"><span>時点</span><select id="inTp"><option>T0</option><option>T1</option><option>T2</option></select></label>
+   <label class="f"><span>顔の向き(画面上)</span><select id="inFace"><option value="right">右向き(顔が画面の右を向く)</option><option value="left">左向き(顔が画面の左を向く)</option></select></label>
+   <label class="f"><span>三脚の高さのメモ</span><input id="inTripod" type="text" placeholder="例: 脚3段目 + 12 cm"></label>
+   <div id="refInfo" class="small mut"></div>
+   <div class="row" style="margin-top:10px">
+    <button id="btnStart" class="primary">開始(カメラとセンサーを許可)</button>
+    <button id="btnSettings">設定</button>
+   </div>
+   <p class="small mut">スマホを T0 と同じ向きの横向きにしてから「開始」を押してください。T0 では開始時の横向きの左右が基準になります。</p>
+  </div>
+
+  <details class="card">
+   <summary><b>撮影環境のチェックリスト</b></summary>
+   <ul class="check" id="checklist"></ul>
+  </details>
+
+  <div class="card">
+   <h2 style="margin-top:0">基準データと記録</h2>
+   <div class="row">
+    <button id="btnExportRef">この参加者の基準データを書き出す</button>
+    <label class="row"><button id="btnImportRefBtn">基準データを読み込む</button><input id="fileRef" type="file" accept=".json,application/json" style="display:none"></label>
+   </div>
+   <div class="row" style="margin-top:8px">
+    <button id="btnCsv">記録を CSV で書き出す</button>
+    <span id="recCount" class="small mut"></span>
+   </div>
+   <div id="refList" class="small mut" style="margin-top:8px"></div>
+  </div>
+  <p class="small mut" id="verInfo"></p>
+ </div>
+</section>
+
+<!-- ===== 撮影画面 ===== -->
+<section id="shoot" class="screen">
+ <div id="stage">
+  <video id="video" playsinline muted autoplay></video>
+  <canvas id="ov"></canvas>
+  <div id="guide"></div>
+  <div id="warn"></div>
+  <div id="holdbar"></div>
+ </div>
+ <aside class="side">
+  <div id="sessInfo"></div>
+  <table class="cond" id="condTable"></table>
+  <div class="btns">
+   <button id="btnPick" class="full primary">静止画で点を指定</button>
+   <button id="btn900" class="full">900 mm を確認した</button>
+   <button id="btnArm" class="full">撮影待機を始める</button>
+   <button id="btnManual">手動で撮る</button>
+   <select id="selOv"><option value="contour">重ね: 輪郭線</option><option value="blend">重ね: 半透明</option><option value="none">重ね: なし</option></select>
+   <button id="btnSettings2">設定</button>
+   <button id="btnEnd">終了</button>
+  </div>
+  <div id="dbg" class="small mut" style="margin-top:6px"></div>
+ </aside>
+</section>
+
+<!-- ===== 点の指定・確認画面(共通エディタ) ===== -->
+<section id="edit" class="screen">
+ <div id="edStage">
+  <canvas id="edCv"></canvas>
+  <canvas id="loupe" width="300" height="300"></canvas>
+  <div id="edHint"></div>
+ </div>
+ <aside class="side">
+  <h3 id="edTitle" style="margin-top:0;color:var(--fg)">点の指定</h3>
+  <div id="edDef" class="small mut"></div>
+  <div class="seg" id="edPtSeg" style="margin:8px 0"></div>
+  <div class="seg" style="margin:6px 0">
+   <button class="sm" data-view="all">全体</button>
+   <button class="sm" data-view="active">選択点を拡大</button>
+   <button class="sm" id="btnZoom">×4</button>
+  </div>
+  <div id="edRefBox" style="display:none;margin:8px 0">
+   <div class="small mut" id="edRefLabel">T0 の同じ部分</div>
+   <canvas id="refCv" width="400" height="300"></canvas>
+  </div>
+  <div id="edCmpBox" style="display:none;margin:6px 0">
+   <select id="selCmp"><option value="none">T0 との比較: なし</option><option value="side">並べる</option><option value="blend">重ねる</option></select>
+  </div>
+  <div id="edInfo" class="small"></div>
+  <table class="cond" id="edCond"></table>
+  <div class="btns" id="edBtns"></div>
+ </aside>
+</section>
+
+<!-- ===== 設定画面 ===== -->
+<section id="settings" class="screen scroll">
+ <div class="wrap">
+  <h1>設定</h1>
+  <div class="card" id="setForm"></div>
+  <div class="card">
+   <h2 style="margin-top:0">校正</h2>
+   <div class="row">
+    <button id="btnLevelCal">センサーの水平校正(今の状態を 0°)</button>
+    <button id="btnLevelReset" class="sm">校正を消す</button>
+   </div>
+   <p class="small mut" id="levelInfo"></p>
+   <div class="row"><button id="btnCamCal">カメラ校正(900 mm の目盛りを撮る)</button></div>
+   <p class="small mut" id="camCalInfo"></p>
+   <p class="small mut">校正は撮影画面を開いた状態(カメラとセンサーが動いている状態)で行ってください。</p>
+  </div>
+  <div class="row"><button id="btnSetDefault" class="danger">既定値に戻す</button><button id="btnSetBack" class="primary">戻る</button></div>
+ </div>
+</section>
+
+<div id="rotate">スマホを横向きにしてください</div>
+<div id="toast"></div>
+
+<script>
+/*PURE-BEGIN*/
+// ============================================================
+//  判定ロジック(画面から独立した純粋関数。単体テスト可能)
+// ============================================================
+var APP_VERSION = '1.0.0';
+
+var DEFAULT_SETTINGS = {
+  holdSec: 0.7,
+  tolPitch: 1.0, tolRoll: 1.0,
+  minInliers: 30, maxTrackErr: 1.5,
+  tolHrl: 1.0, tolHeightPct: 1.0,
+  refDistMm: 900, tolDistMm: 10,
+  tolPosPct: 0.5, minNcc: 0.6,
+  tolStillPct: 0.15, tolRotRate: 3.0, tolFrameDiff: 2.5,
+  sharpRatio: 0.8, sharpMinT0: 20,
+  voice: true, overlay: 'contour', debug: false, semiAuto: false,
+  mmPerWidth: 1100,           // 900 mm での画面横幅(mm)。カメラ校正で上書き
+  pitchOffset: 0, rollOffset: 0, pitchInvert: false,
+  analysisWidth: 960
+};
+
+var Judge = {
+  deg: function (r) { return r * 180 / Math.PI; },
+
+  // 加速度(重力込み)→ 画面座標の「上」ベクトル。angle は画面の回転角(90 / -90 / 0 / 180)
+  // 符号の流儀(端末により逆)は、横向きで端末が立っている前提で自動補正する
+  gravityToScreen: function (g, angle) {
+    var t = angle * Math.PI / 180, c = Math.cos(t), s = Math.sin(t);
+    var ux = g.x * c - g.y * s, uy = g.x * s + g.y * c, uz = g.z;
+    if (uy < 0) { ux = -ux; uy = -uy; uz = -uz; }
+    return { ux: ux, uy: uy, uz: uz };
+  },
+
+  // ピッチ: 光軸(背面カメラ = 端末 -z)の仰角。ロール: 画面上の水平のずれ(光軸まわり)
+  motionAngles: function (g, angle) {
+    var u = Judge.gravityToScreen(g, angle);
+    var n = Math.hypot(u.ux, u.uy, u.uz) || 1;
+    var p = Math.asin(Math.max(-1, Math.min(1, -u.uz / n)));
+    return { pitch: Judge.deg(p), roll: Judge.deg(Math.atan2(u.ux, u.uy)) };
+  },
+
+  // HRL: 耳点→目尻点の線が床に対してどれだけ前上がりか(°)。正 = 目尻が高い = あごが上がっている
+  hrlRaise: function (eye, ear, W, H, roll) {
+    var vx = (eye.x - ear.x) * W, vy = -(eye.y - ear.y) * H;
+    var r = (roll || 0) * Math.PI / 180, c = Math.cos(r), s = Math.sin(r);
+    var wx = vx * c - vy * s, wy = vx * s + vy * c;
+    return Judge.deg(Math.atan2(wy, Math.abs(wx)));
+  },
+
+  // 目尻–耳の距離(画像の幅で割った値)
+  normDist: function (eye, ear, W, H) {
+    return Math.hypot(eye.x - ear.x, (eye.y - ear.y) * H / W);
+  },
+
+  distEstimate: function (eye, ear, W, H, d0, refMm) {
+    var d = Judge.normDist(eye, ear, W, H);
+    return d > 0 ? refMm * d0 / d : null;
+  },
+
+  // 2点のずれ(画像の幅に対する %)
+  posDiffPct: function (p, q, aspect) {
+    return Math.hypot(p.x - q.x, (p.y - q.y) * aspect) * 100;
+  },
+
+  // 直近 windowMs の点の動きの最大幅(画像の幅に対する %)。履歴が足りなければ null
+  stillRangePct: function (hist, now, windowMs, aspect) {
+    var h = hist.filter(function (e) { return now - e.t <= windowMs; });
+    if (h.length < 3 || now - h[0].t < windowMs * 0.8) return null;
+    var m = 0;
+    ['eye', 'ear'].forEach(function (k) {
+      var xs = h.map(function (e) { return e[k].x; }), ys = h.map(function (e) { return e[k].y; });
+      var dx = Math.max.apply(null, xs) - Math.min.apply(null, xs);
+      var dy = (Math.max.apply(null, ys) - Math.min.apply(null, ys)) * aspect;
+      m = Math.max(m, dx, dy);
+    });
+    return m * 100;
+  },
+
+  // 追跡に使う頭部の枠(目尻と耳を含み、こめかみ・頬まで。前方は顔の輪郭を越えない)
+  trackRoi: function (eye, ear, w, h, faceSign) {
+    var L = Math.hypot(eye[0] - ear[0], eye[1] - ear[1]);
+    var front = eye[0] + faceSign * 0.25 * L, back = ear[0] - faceSign * 0.6 * L;
+    var mid = (eye[1] + ear[1]) / 2;
+    return Judge.clipRect(Math.min(front, back), mid - 0.8 * L, Math.abs(front - back), 1.7 * L, w, h);
+  },
+
+  // 輪郭の一致度に使う枠(横顔の輪郭=鼻・口・あごを含む)
+  profileRoi: function (eye, ear, w, h, faceSign) {
+    var L = Math.hypot(eye[0] - ear[0], eye[1] - ear[1]);
+    var front = eye[0] + faceSign * 1.6 * L, back = ear[0] - faceSign * 0.6 * L;
+    var mid = (eye[1] + ear[1]) / 2;
+    return Judge.clipRect(Math.min(front, back), mid - 1.2 * L, Math.abs(front - back), 3.4 * L, w, h);
+  },
+
+  clipRect: function (x, y, rw, rh, w, h) {
+    var x0 = Math.max(0, Math.floor(x)), y0 = Math.max(0, Math.floor(y));
+    var x1 = Math.min(w, Math.ceil(x + rw)), y1 = Math.min(h, Math.ceil(y + rh));
+    return { x: x0, y: y0, w: Math.max(0, x1 - x0), h: Math.max(0, y1 - y0) };
+  },
+
+  toGray: function (rgba, n, out) {
+    for (var i = 0, j = 0; j < n; i += 4, j++) out[j] = (rgba[i] * 77 + rgba[i + 1] * 150 + rgba[i + 2] * 29) >> 8;
+    return out;
+  },
+
+  // 鮮明さ: ラプラシアンの分散
+  lapVar: function (g, w, rect) {
+    var x0 = Math.max(1, rect.x), y0 = Math.max(1, rect.y);
+    var x1 = Math.min(w - 1, rect.x + rect.w), y1 = Math.min(Math.floor(g.length / w) - 1, rect.y + rect.h);
+    var s = 0, s2 = 0, n = 0;
+    for (var y = y0; y < y1; y++) {
+      var o = y * w;
+      for (var x = x0; x < x1; x++) {
+        var i = o + x;
+        var l = 4 * g[i] - g[i - 1] - g[i + 1] - g[i - w] - g[i + w];
+        s += l; s2 += l * l; n++;
+      }
+    }
+    if (n < 10) return null;
+    var m = s / n;
+    return s2 / n - m * m;
+  },
+
+  // ぼかし(3x3)→ Sobel のエッジ強度
+  edgeMap: function (g, w, h) {
+    var b = new Float32Array(w * h), e = new Float32Array(w * h), x, y, i;
+    for (y = 1; y < h - 1; y++) for (x = 1; x < w - 1; x++) {
+      i = y * w + x;
+      b[i] = (g[i - w - 1] + 2 * g[i - w] + g[i - w + 1] + 2 * g[i - 1] + 4 * g[i] + 2 * g[i + 1] + g[i + w - 1] + 2 * g[i + w] + g[i + w + 1]) / 16;
+    }
+    for (y = 2; y < h - 2; y++) for (x = 2; x < w - 2; x++) {
+      i = y * w + x;
+      var gx = b[i - w + 1] + 2 * b[i + 1] + b[i + w + 1] - b[i - w - 1] - 2 * b[i - 1] - b[i + w - 1];
+      var gy = b[i + w - 1] + 2 * b[i + w] + b[i + w + 1] - b[i - w - 1] - 2 * b[i - w] - b[i - w + 1];
+      e[i] = Math.sqrt(gx * gx + gy * gy);
+    }
+    return e;
+  },
+
+  // 正規化相互相関
+  ncc: function (a, b) {
+    var n = Math.min(a.length, b.length), ma = 0, mb = 0, i;
+    for (i = 0; i < n; i++) { ma += a[i]; mb += b[i]; }
+    ma /= n; mb /= n;
+    var sab = 0, saa = 0, sbb = 0;
+    for (i = 0; i < n; i++) { var da = a[i] - ma, db = b[i] - mb; sab += da * db; saa += da * da; sbb += db * db; }
+    return (saa > 0 && sbb > 0) ? sab / Math.sqrt(saa * sbb) : 0;
+  },
+
+  // 相似変換 q = [a -b; b a] p + t
+  applySim: function (T, x, y) { return [T.a * x - T.b * y + T.tx, T.b * x + T.a * y + T.ty]; },
+
+  fitSimLS: function (P, Q, idx) {
+    var n = idx.length, mpx = 0, mpy = 0, mqx = 0, mqy = 0, k, i;
+    for (k = 0; k < n; k++) { i = idx[k]; mpx += P[2 * i]; mpy += P[2 * i + 1]; mqx += Q[2 * i]; mqy += Q[2 * i + 1]; }
+    mpx /= n; mpy /= n; mqx /= n; mqy /= n;
+    var sa = 0, sb = 0, sp = 0;
+    for (k = 0; k < n; k++) {
+      i = idx[k];
+      var px = P[2 * i] - mpx, py = P[2 * i + 1] - mpy, qx = Q[2 * i] - mqx, qy = Q[2 * i + 1] - mqy;
+      sa += px * qx + py * qy; sb += px * qy - py * qx; sp += px * px + py * py;
+    }
+    if (sp <= 0) return null;
+    var a = sa / sp, b = sb / sp;
+    return { a: a, b: b, tx: mqx - (a * mpx - b * mpy), ty: mqy - (b * mpx + a * mpy) };
+  },
+
+  ransacSim: function (P, Q, n, thr, iters, rnd) {
+    rnd = rnd || Math.random;
+    if (n < 2) return null;
+    var best = null, bestIn = [], t2 = thr * thr, it, k;
+    for (it = 0; it < iters; it++) {
+      var i = Math.floor(rnd() * n), j = Math.floor(rnd() * n);
+      if (i === j) continue;
+      var T = Judge.fitSimLS(P, Q, [i, j]);
+      if (!T) continue;
+      var inl = [];
+      for (k = 0; k < n; k++) {
+        var m = Judge.applySim(T, P[2 * k], P[2 * k + 1]);
+        var dx = m[0] - Q[2 * k], dy = m[1] - Q[2 * k + 1];
+        if (dx * dx + dy * dy <= t2) inl.push(k);
+      }
+      if (inl.length > bestIn.length) { bestIn = inl; best = T; }
+    }
+    if (!best || bestIn.length < 2) return null;
+    for (var rep = 0; rep < 2; rep++) {           // 内点で最小二乗し直す
+      var T2 = Judge.fitSimLS(P, Q, bestIn);
+      if (!T2) break;
+      best = T2;
+      var inl2 = [];
+      for (k = 0; k < n; k++) {
+        var m2 = Judge.applySim(best, P[2 * k], P[2 * k + 1]);
+        var ex = m2[0] - Q[2 * k], ey = m2[1] - Q[2 * k + 1];
+        if (ex * ex + ey * ey <= t2) inl2.push(k);
+      }
+      if (inl2.length < 2) break;
+      bestIn = inl2;
+    }
+    var se = 0;
+    for (k = 0; k < bestIn.length; k++) {
+      var q = Judge.applySim(best, P[2 * bestIn[k]], P[2 * bestIn[k] + 1]);
+      se += Math.hypot(q[0] - Q[2 * bestIn[k]], q[1] - Q[2 * bestIn[k] + 1]);
+    }
+    return { T: best, inliers: bestIn, err: se / bestIn.length };
+  },
+
+  fmt: function (v, d) { return (v == null || !isFinite(v)) ? '—' : Number(v).toFixed(d == null ? 1 : d); },
+
+  // 5章の条件をすべて判定する
+  // inp: {orientOk, pitch, roll, rotRate, eye, ear, W, H, track, trackNa, d0, follow, ref, ncc,
+  //       stillPct, frameDiff, sharp, refSharp, semi, armed, lostLong, isT0}
+  evaluate: function (inp, st) {
+    var f = Judge.fmt, C = [];
+    function add(id, key, label, val, tol, ok, na) {
+      C.push({ id: id, key: key, label: label, val: val, tol: tol, ok: !!(na || ok), na: !!na, bad: !na && !ok });
+    }
+    var pv = inp.pitch, rv = inp.roll, e = inp.eye, r = inp.ear, has = !!(e && r);
+    var v = { pitch: pv, roll: rv, hrl: null, heightPct: null, heightMm: null, distMm: null, dEye: null, dEar: null, ncc: inp.ncc, sharp: inp.sharp, stillPct: inp.stillPct };
+
+    add(1, 'orient', '横向き(左右も T0 と同じ)', inp.orientOk ? '一致' : '不一致', '一致のみ', inp.orientOk);
+    add(2, 'pitch', 'カメラの前後の傾き', pv == null ? 'センサーなし' : f(pv, 2) + '°', '±' + st.tolPitch + '°', pv != null && Math.abs(pv) <= st.tolPitch);
+    add(3, 'roll', 'カメラの左右の傾き', rv == null ? 'センサーなし' : f(rv, 2) + '°', '±' + st.tolRoll + '°', rv != null && Math.abs(rv) <= st.tolRoll);
+
+    if (inp.semi) {
+      [[4, 'track', '点の追跡'], [5, 'hrl', 'HRL が水平'], [6, 'height', '顔とカメラの高さ'], [7, 'dist', '距離'], [8, 'match', 'T0 と同じ画角']].forEach(function (a) {
+        add(a[0], a[1], a[2], '撮影後', '—', true, true);
+      });
+    } else {
+      var tr = inp.track;
+      if (inp.trackNa) add(4, 'track', '点の追跡', '半自動(タップ)', '—', true, true);
+      else add(4, 'track', '点の追跡', has ? (tr ? tr.inliers + '点 / ' + f(tr.err, 2) + 'px' : '—') : '未指定',
+        st.minInliers + '点以上 / ' + st.maxTrackErr + 'px以下', has && tr && tr.inliers >= st.minInliers && tr.err <= st.maxTrackErr);
+      if (has) {
+        v.hrl = Judge.hrlRaise(e, r, inp.W, inp.H, rv || 0);
+        v.heightPct = (e.y - 0.5) * 100;
+        v.heightMm = (e.y - 0.5) * (inp.H / inp.W) * st.mmPerWidth;
+        if (inp.d0) v.distMm = Judge.distEstimate(e, r, inp.W, inp.H, inp.d0, st.refDistMm);
+      }
+      add(5, 'hrl', 'HRL が水平', v.hrl == null ? '—' : f(v.hrl, 2) + '°', '±' + st.tolHrl + '°', v.hrl != null && Math.abs(v.hrl) <= st.tolHrl);
+      add(6, 'height', '顔とカメラの高さ', v.heightPct == null ? '—' : f(v.heightPct, 2) + '% (' + f(v.heightMm, 0) + 'mm)', '±' + st.tolHeightPct + '%',
+        v.heightPct != null && Math.abs(v.heightPct) <= st.tolHeightPct);
+      add(7, 'dist', '距離 ' + st.refDistMm + ' mm', !has ? '—' : (inp.d0 ? f(v.distMm, 0) + ' mm' : '未確認'), '±' + st.tolDistMm + ' mm',
+        v.distMm != null && Math.abs(v.distMm - st.refDistMm) <= st.tolDistMm);
+      if (inp.follow && inp.ref) {
+        var asp = inp.H / inp.W;
+        if (has) { v.dEye = Judge.posDiffPct(e, inp.ref.eye, asp); v.dEar = Judge.posDiffPct(r, inp.ref.ear, asp); }
+        add(8, 'match', 'T0 と同じ画角',
+          has ? '目' + f(v.dEye, 2) + '% 耳' + f(v.dEar, 2) + '% 一致' + f(inp.ncc, 2) : '—',
+          '±' + st.tolPosPct + '% / ' + st.minNcc + '以上',
+          has && v.dEye <= st.tolPosPct && v.dEar <= st.tolPosPct && inp.ncc != null && inp.ncc >= st.minNcc);
+      } else {
+        add(8, 'match', 'T0 と同じ画角', '—', 'T1・T2 のみ', true, true);
+      }
+    }
+
+    var rotOk = inp.rotRate == null || inp.rotRate <= st.tolRotRate;
+    if (inp.semi) {
+      add(9, 'still', '静止している', inp.frameDiff == null ? '—' : '差' + f(inp.frameDiff, 1) + ' / 回転' + f(inp.rotRate, 1) + '°/s',
+        '差' + st.tolFrameDiff + '以下', inp.frameDiff != null && inp.frameDiff <= st.tolFrameDiff && rotOk);
+      add(10, 'sharp', 'ブレていない', '撮影後', '—', true, true);
+    } else {
+      add(9, 'still', '静止している', inp.stillPct == null ? '—' : f(inp.stillPct, 2) + '% / 回転' + f(inp.rotRate, 1) + '°/s',
+        st.tolStillPct + '%以内', inp.stillPct != null && inp.stillPct <= st.tolStillPct && rotOk);
+      var sOk, sTol;
+      if (inp.follow && inp.refSharp) { sTol = 'T0 の ' + Math.round(st.sharpRatio * 100) + '%(' + f(inp.refSharp * st.sharpRatio, 0) + ')以上'; sOk = inp.sharp != null && inp.sharp >= inp.refSharp * st.sharpRatio; }
+      else { sTol = st.sharpMinT0 + ' 以上'; sOk = inp.sharp != null && inp.sharp >= st.sharpMinT0; }
+      add(10, 'sharp', 'ブレていない', inp.sharp == null ? '—' : f(inp.sharp, 0), sTol, sOk);
+    }
+
+    var allOk = C.every(function (c) { return c.ok; });
+    return { conds: C, allOk: allOk, vals: v, guide: Judge.guide(C, inp, st, v, allOk) };
+  },
+
+  // 今直すべきこと1つ。優先順: 向き → 傾き → 追跡 → 高さ → 距離 → 左右の位置 → HRL → 静止
+  guide: function (C, inp, st, v, allOk) {
+    function bad(k) { for (var i = 0; i < C.length; i++) if (C[i].key === k) return C[i].bad; return false; }
+    var f = Judge.fmt, has = !!(inp.eye && inp.ear);
+    if (bad('orient')) return { text: 'スマホを T0 と同じ向きの横向きにしてください', who: 'cam' };
+    if (bad('pitch') || bad('roll')) {
+      if (inp.pitch == null) return { text: '傾きセンサーが使えません', who: 'cam' };
+      var p = [];
+      if (bad('pitch')) p.push('カメラが ' + f(Math.abs(inp.pitch), 1) + '° ' + (inp.pitch > 0 ? '上向き' : '下向き'));
+      if (bad('roll')) p.push('スマホを' + (inp.roll > 0 ? '時計回り' : '反時計回り') + 'に ' + f(Math.abs(inp.roll), 1) + '°');
+      return { text: '三脚を調整: ' + p.join('、'), who: 'cam' };
+    }
+    if (bad('track')) {
+      if (!has) return { text: '「静止画で点を指定」を押してください', who: 'cam' };
+      if (inp.lostLong) return { text: '追跡が外れました。点を指定し直してください', who: 'cam' };
+      return { text: '追跡が不安定です(顔を動かさないで)', who: 'sub', speak: 'そのまま動かないでください' };
+    }
+    if (bad('height')) {
+      var mm = Math.abs(v.heightMm);
+      return { text: '三脚を ' + f(mm, 0) + ' mm ' + (v.heightMm > 0 ? '下げる' : '上げる'), who: 'cam' };
+    }
+    if (bad('dist')) {
+      if (!inp.d0) return inp.isT0
+        ? { text: 'メジャーで 900 mm を確認し「900 mm を確認した」を押す', who: 'cam' }
+        : { text: '距離の基準(d0)がありません', who: 'cam' };
+      var dd = v.distMm - st.refDistMm;
+      if (dd > 0) return { text: '被写体: カメラの方へ ' + f(dd / 10, 1) + ' cm 寄る(床の印も確認)', who: 'sub', speak: 'カメラの方へ、少し寄ってください' };
+      return { text: '被写体: カメラから ' + f(-dd / 10, 1) + ' cm 離れる(床の印も確認)', who: 'sub', speak: 'カメラから、少し離れてください' };
+    }
+    if (bad('match') && has && inp.ref) {
+      var asp = inp.H / inp.W;
+      var dx = (inp.eye.x + inp.ear.x) / 2 - (inp.ref.eye.x + inp.ref.ear.x) / 2;
+      var dy = ((inp.eye.y + inp.ear.y) / 2 - (inp.ref.eye.y + inp.ref.ear.y) / 2) * asp;
+      var tolN = st.tolPosPct / 100;
+      if (Math.abs(dx) > tolN * 0.7 && Math.abs(dx) >= Math.abs(dy)) {
+        var sign = inp.eye.x >= inp.ear.x ? 1 : -1;            // 顔が画面の右を向いていれば +1
+        var fwd = -dx * sign * st.mmPerWidth;                    // 前へ進むべき量(mm)
+        return fwd > 0 ? { text: '被写体: ' + f(fwd / 10, 1) + ' cm 前へ(顔の向いている方へ)', who: 'sub', speak: '顔の向いている方へ、少し進んでください' }
+          : { text: '被写体: ' + f(-fwd / 10, 1) + ' cm 後ろへ', who: 'sub', speak: '少し後ろへ下がってください' };
+      }
+      if (Math.abs(dy) > tolN * 0.7) {
+        var mmy = dy * st.mmPerWidth;
+        return { text: 'T0 より顔が ' + f(Math.abs(mmy), 0) + ' mm ' + (mmy > 0 ? '低い: 三脚を下げる' : '高い: 三脚を上げる'), who: 'cam' };
+      }
+      if (inp.ncc != null && inp.ncc < st.minNcc) return { text: '注視点を見て、顔を真横に向けてください', who: 'sub', speak: '正面の印を見て、顔をまっすぐにしてください' };
+      if (!bad('hrl')) return { text: 'T0 と画角が合いません(頭の傾き・距離を確認)', who: 'cam' };
+    }
+    if (bad('hrl')) return v.hrl > 0 ? { text: '被写体: あごを少し下げて', who: 'sub', speak: 'あごを少し下げてください' }
+      : { text: '被写体: あごを少し上げて', who: 'sub', speak: 'あごを少し上げてください' };
+    if (bad('still')) return { text: 'そのまま動かないでください', who: 'sub', speak: 'そのまま動かないでください' };
+    if (bad('sharp')) return { text: 'ブレています。動かないでください', who: 'sub', speak: 'そのまま動かないでください' };
+    if (allOk) return inp.armed ? { text: 'そのまま…撮影します', who: 'sub', ok: true, speak: 'そのまま動かないでください' }
+      : { text: '条件OK「撮影待機を始める」を押す', who: 'cam', ok: true };
+    return { text: '', who: 'cam' };
+  }
+};
+if (typeof module !== 'undefined') module.exports = { Judge: Judge, DEFAULT_SETTINGS: DEFAULT_SETTINGS };
+/*PURE-END*/
+</script>
+
+<script>
+// ============================================================
+//  アプリ本体
+// ============================================================
+'use strict';
+var $ = function (s) { return document.querySelector(s); };
+var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+var F = Judge.fmt;
+function pad(n) { return String(n).padStart(2, '0'); }
+function stamp(d) { return d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '-' + pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds()); }
+function isoLocal(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()); }
+function toast(msg, ms) { var t = $('#toast'); t.textContent = msg; t.style.display = 'block'; clearTimeout(toast._t); toast._t = setTimeout(function () { t.style.display = 'none'; }, ms || 2500); }
+function show(id) { document.querySelectorAll('.screen').forEach(function (s) { s.classList.toggle('active', s.id === id); }); document.body.classList.toggle('insess', id === 'shoot' || id === 'edit'); }
+function mkCanvas(w, h) { var c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+
+// ---------- 設定 ----------
+var SETTINGS_KEY = 'profileCam.settings.v1';
+function loadSettings() {
+  var s = Object.assign({}, DEFAULT_SETTINGS);
+  try { Object.assign(s, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); } catch (e) {}
+  return s;
+}
+function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(S.settings)); } catch (e) {} }
+
+// ---------- 状態 ----------
+var S = {
+  settings: loadSettings(),
+  sess: null,
+  ref: null,
+  stream: null, track: null, W: 0, H: 0, aW: 0, aH: 0,
+  ana: null,
+  motion: { g: null, rot: null, pitch: null, roll: null, rawPitch: null, rawRoll: null },
+  orientExpected: null,
+  tracker: null, pts: null, rough: null, hist: [], lostAt: 0,
+  d0: null, d0Pending: false,
+  armed: false, holdStart: 0, capturing: false, paused: true,
+  stillCanvas: null,
+  lastEval: null, lastPoseAt: 0, lastPoseTs: 0,
+  diffSnaps: [],
+  cap: null, loopHz: 0, wakeLock: null, audio: null
+};
+var LIB = { cv: null, pose: null };
+
+// ---------- IndexedDB ----------
+var DB = {
+  db: null,
+  open: function () {
+    if (DB.db) return Promise.resolve(DB.db);
+    return new Promise(function (res, rej) {
+      var r = indexedDB.open('profileCam', 1);
+      r.onupgradeneeded = function () {
+        var d = r.result;
+        if (!d.objectStoreNames.contains('refs')) d.createObjectStore('refs', { keyPath: 'pid' });
+        if (!d.objectStoreNames.contains('records')) d.createObjectStore('records', { keyPath: 'id', autoIncrement: true });
+      };
+      r.onsuccess = function () { DB.db = r.result; res(DB.db); };
+      r.onerror = function () { rej(r.error); };
+    });
+  },
+  req: function (store, mode, fn) {
+    return DB.open().then(function (d) {
+      return new Promise(function (res, rej) {
+        var tx = d.transaction(store, mode), q = fn(tx.objectStore(store));
+        tx.oncomplete = function () { res(q && q.result); };
+        tx.onerror = function () { rej(tx.error); };
+      });
+    });
+  },
+  put: function (s, v) { return DB.req(s, 'readwrite', function (o) { return o.put(v); }); },
+  get: function (s, k) { return DB.req(s, 'readonly', function (o) { return o.get(k); }); },
+  all: function (s) { return DB.req(s, 'readonly', function (o) { return o.getAll(); }); }
+};
+
+// ---------- ライブラリの読み込み ----------
+var CV_URLS = ['./opencv.js', 'https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.10.0-release.1/dist/opencv.js', 'https://docs.opencv.org/4.10.0/opencv.js'];
+var MP_BASE = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+var MP_MODEL = 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
+var libMsg = { cv: 'OpenCV: 読み込み中', pose: '顔の点の自動推定: 読み込み中' };
+function libStatus() { $('#libStatus').innerHTML = libMsg.cv + '<br>' + libMsg.pose; }
+
+function loadScriptFrom(url, onp) {
+  return fetch(url).then(function (r) {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    var reader = r.body.getReader(), chunks = [], got = 0;
+    function pump() {
+      return reader.read().then(function (x) {
+        if (x.done) return;
+        chunks.push(x.value); got += x.value.length; onp(got); return pump();
+      });
+    }
+    return pump().then(function () {
+      var u = URL.createObjectURL(new Blob(chunks, { type: 'text/javascript' }));
+      return new Promise(function (res, rej) {
+        var s = document.createElement('script'); s.src = u; s.onload = res; s.onerror = function () { rej(new Error('script error')); };
+        document.head.appendChild(s);
+      });
+    });
+  });
+}
+async function loadCV() {
+  for (var i = 0; i < CV_URLS.length; i++) {
+    try {
+      await loadScriptFrom(CV_URLS[i], function (b) { libMsg.cv = 'OpenCV: 読み込み中 ' + (b / 1048576).toFixed(1) + ' MB'; libStatus(); });
+      var t0 = performance.now();
+      while (performance.now() - t0 < 60000) {
+        var c = window.cv;
+        if (c instanceof Promise) { window.cv = await c; continue; }
+        if (c && c.Mat && c.calcOpticalFlowPyrLK) { LIB.cv = c; libMsg.cv = '<span class="ok">OpenCV: 準備完了</span>'; libStatus(); return; }
+        await sleep(100);
+      }
+      throw new Error('初期化のタイムアウト');
+    } catch (e) { console.warn('OpenCV', CV_URLS[i], e); }
+  }
+  libMsg.cv = '<span class="ng">OpenCV を読み込めませんでした。追跡が使えないため「半自動」で撮影できます(設定)。</span>'; libStatus();
+}
+async function loadPose() {
+  try {
+    var vision = await import(MP_BASE + '/vision_bundle.mjs');
+    var fs = await vision.FilesetResolver.forVisionTasks(MP_BASE + '/wasm');
+    var mk = function (dlg) { return vision.PoseLandmarker.createFromOptions(fs, { baseOptions: { modelAssetPath: MP_MODEL, delegate: dlg }, runningMode: 'VIDEO', numPoses: 1 }); };
+    try { LIB.pose = await mk('GPU'); } catch (e) { LIB.pose = await mk('CPU'); }
+    libMsg.pose = '<span class="ok">顔の点の自動推定: 準備完了</span>';
+  } catch (e) {
+    console.warn('pose', e);
+    libMsg.pose = '<span class="warn">顔の点の自動推定は使えません(手でタップして指定できます)</span>';
+  }
+  libStatus();
+}
+// 大まかな推定: 見えている側の目尻(3/6)と耳(7/8)
+function detectRough(source) {
+  if (!LIB.pose) return null;
+  try {
+    var ts = Math.max(performance.now(), S.lastPoseTs + 1); S.lastPoseTs = ts;
+    var r = LIB.pose.detectForVideo(source, ts);
+    var L = r && r.landmarks && r.landmarks[0];
+    if (!L) return null;
+    var vis = function (i) { return L[i].visibility == null ? 0.5 : L[i].visibility; };
+    var left = vis(3) + vis(7), right = vis(6) + vis(8);
+    var e = left >= right ? L[3] : L[6], a = left >= right ? L[7] : L[8];
+    return { eye: { x: e.x, y: e.y }, ear: { x: a.x, y: a.y } };
+  } catch (e) { return null; }
+}
+
+// ---------- 追跡(OpenCV.js) ----------
+function Tracker(cv, gray, aW, aH, eyeN, earN) {
+  this.cv = cv; this.aW = aW; this.aH = aH;
+  this.key = new cv.Mat(aH, aW, cv.CV_8UC1); this.key.data.set(gray);
+  this.cur = new cv.Mat(aH, aW, cv.CV_8UC1);
+  this.eyeA = [eyeN.x * aW, eyeN.y * aH]; this.earA = [earN.x * aW, earN.y * aH];
+  var sign = this.eyeA[0] >= this.earA[0] ? 1 : -1;
+  var roi = Judge.trackRoi(this.eyeA, this.earA, aW, aH, sign);
+  this.roi = roi;
+  var mask = cv.Mat.zeros(aH, aW, cv.CV_8UC1);
+  if (roi.w > 4 && roi.h > 4) { var sub = mask.roi(new cv.Rect(roi.x, roi.y, roi.w, roi.h)); sub.setTo(new cv.Scalar(255)); sub.delete(); }
+  var corners = new cv.Mat();
+  cv.goodFeaturesToTrack(this.key, corners, 250, 0.003, 4, mask, 5, false, 0.04);
+  this.N = corners.rows;
+  this.kp = new Float32Array(corners.data32F.subarray(0, this.N * 2));
+  corners.delete(); mask.delete();
+  this.kpMat = this.N > 0 ? cv.matFromArray(this.N, 1, cv.CV_32FC2, Array.from(this.kp)) : null;
+  this.T = { a: 1, b: 0, tx: 0, ty: 0 };
+  this.win = new cv.Size(21, 21);
+  this.crit = new cv.TermCriteria(cv.TERM_CRITERIA_EPS | cv.TERM_CRITERIA_COUNT, 20, 0.03);
+  this.flag = (cv.OPTFLOW_USE_INITIAL_FLOW !== undefined) ? cv.OPTFLOW_USE_INITIAL_FLOW : 4;
+  this.inPts = [];
+}
+Tracker.prototype.track = function (gray) {
+  var cv = this.cv, N = this.N;
+  if (N < 6) return { ok: false, inliers: 0, err: 99 };
+  this.cur.data.set(gray);
+  var guess = new Array(N * 2), i;
+  for (i = 0; i < N; i++) { var g = Judge.applySim(this.T, this.kp[2 * i], this.kp[2 * i + 1]); guess[2 * i] = g[0]; guess[2 * i + 1] = g[1]; }
+  var next = cv.matFromArray(N, 1, cv.CV_32FC2, guess), st = new cv.Mat(), er = new cv.Mat();
+  var back = cv.matFromArray(N, 1, cv.CV_32FC2, Array.from(this.kp)), st2 = new cv.Mat(), er2 = new cv.Mat();
+  var res;
+  try {
+    cv.calcOpticalFlowPyrLK(this.key, this.cur, this.kpMat, next, st, er, this.win, 3, this.crit, this.flag);
+    cv.calcOpticalFlowPyrLK(this.cur, this.key, next, back, st2, er2, this.win, 3, this.crit, this.flag);
+    var nq = next.data32F, nb = back.data32F, P = [], Q = [];
+    for (i = 0; i < N; i++) {
+      if (!st.data[i] || !st2.data[i]) continue;
+      var fb = Math.hypot(nb[2 * i] - this.kp[2 * i], nb[2 * i + 1] - this.kp[2 * i + 1]);
+      if (fb > 1.0) continue;
+      P.push(this.kp[2 * i], this.kp[2 * i + 1]); Q.push(nq[2 * i], nq[2 * i + 1]);
+    }
+    var R = Judge.ransacSim(P, Q, P.length / 2, 2.0, 80);
+    if (R && R.inliers.length >= 6) {
+      this.T = R.T;
+      this.inPts = R.inliers.map(function (k) { return [Q[2 * k], Q[2 * k + 1]]; });
+      res = { ok: true, inliers: R.inliers.length, err: R.err };
+    } else { this.inPts = []; res = { ok: false, inliers: R ? R.inliers.length : 0, err: R ? R.err : 99 }; }
+  } finally { next.delete(); st.delete(); er.delete(); back.delete(); st2.delete(); er2.delete(); }
+  return res;
+};
+Tracker.prototype.points = function () {
+  var e = Judge.applySim(this.T, this.eyeA[0], this.eyeA[1]), a = Judge.applySim(this.T, this.earA[0], this.earA[1]);
+  return { eye: { x: e[0] / this.aW, y: e[1] / this.aH }, ear: { x: a[0] / this.aW, y: a[1] / this.aH } };
+};
+Tracker.prototype.release = function () { ['key', 'cur', 'kpMat'].forEach(function (k) { if (this[k]) { this[k].delete(); this[k] = null; } }, this); };
+
+// 撮影フレームを最大解像度で静止画に位置合わせし直す
+function cropGrayMat(cv, canvas, r) {
+  var c = mkCanvas(r.w, r.h), x = c.getContext('2d');
+  x.drawImage(canvas, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+  var id = x.getImageData(0, 0, r.w, r.h), g = new Uint8Array(r.w * r.h);
+  Judge.toGray(id.data, r.w * r.h, g);
+  var m = new cv.Mat(r.h, r.w, cv.CV_8UC1); m.data.set(g); return m;
+}
+function refineFull(stillCv, frameCv, Tana, stillPts, W, H, aW) {
+  var cv = LIB.cv; if (!cv) return null;
+  var s = W / aW, T = { a: Tana.a, b: Tana.b, tx: Tana.tx * s, ty: Tana.ty * s };
+  var eA = [stillPts.eye.x * W, stillPts.eye.y * H], rA = [stillPts.ear.x * W, stillPts.ear.y * H];
+  var sign = eA[0] >= rA[0] ? 1 : -1;
+  var R1 = Judge.trackRoi(eA, rA, W, H, sign);
+  if (R1.w < 20 || R1.h < 20) return null;
+  var cs = [[R1.x, R1.y], [R1.x + R1.w, R1.y], [R1.x, R1.y + R1.h], [R1.x + R1.w, R1.y + R1.h]].map(function (p) { return Judge.applySim(T, p[0], p[1]); });
+  var xs = cs.map(function (p) { return p[0]; }), ys = cs.map(function (p) { return p[1]; });
+  var R2 = Judge.clipRect(Math.min.apply(null, xs) - 80, Math.min.apply(null, ys) - 80, Math.max.apply(null, xs) - Math.min.apply(null, xs) + 160, Math.max.apply(null, ys) - Math.min.apply(null, ys) + 160, W, H);
+  if (R2.w < 20 || R2.h < 20) return null;
+  var A = cropGrayMat(cv, stillCv, R1), B = cropGrayMat(cv, frameCv, R2);
+  var corners = new cv.Mat(), none = new cv.Mat(), out = null;
+  try {
+    cv.goodFeaturesToTrack(A, corners, 300, 0.003, 8, none, 7, false, 0.04);
+    var N = corners.rows; if (N < 10) return null;
+    var kp = Float32Array.from(corners.data32F.subarray(0, N * 2)), guess = [], i;   // WASM のメモリが増えても壊れないよう複製
+    for (i = 0; i < N; i++) { var g = Judge.applySim(T, kp[2 * i] + R1.x, kp[2 * i + 1] + R1.y); guess.push(g[0] - R2.x, g[1] - R2.y); }
+    var p0 = cv.matFromArray(N, 1, cv.CV_32FC2, Array.from(kp.subarray(0, N * 2)));
+    var p1 = cv.matFromArray(N, 1, cv.CV_32FC2, guess), st = new cv.Mat(), er = new cv.Mat();
+    var pb = cv.matFromArray(N, 1, cv.CV_32FC2, Array.from(kp.subarray(0, N * 2))), st2 = new cv.Mat(), er2 = new cv.Mat();
+    var win = new cv.Size(31, 31), crit = new cv.TermCriteria(cv.TERM_CRITERIA_EPS | cv.TERM_CRITERIA_COUNT, 30, 0.01);
+    var flag = (cv.OPTFLOW_USE_INITIAL_FLOW !== undefined) ? cv.OPTFLOW_USE_INITIAL_FLOW : 4;
+    cv.calcOpticalFlowPyrLK(A, B, p0, p1, st, er, win, 4, crit, flag);
+    cv.calcOpticalFlowPyrLK(B, A, p1, pb, st2, er2, win, 4, crit, flag);
+    var P = [], Q = [], q = p1.data32F, b = pb.data32F;
+    for (i = 0; i < N; i++) {
+      if (!st.data[i] || !st2.data[i]) continue;
+      if (Math.hypot(b[2 * i] - kp[2 * i], b[2 * i + 1] - kp[2 * i + 1]) > 1.5) continue;
+      P.push(kp[2 * i] + R1.x, kp[2 * i + 1] + R1.y); Q.push(q[2 * i] + R2.x, q[2 * i + 1] + R2.y);
+    }
+    [p0, p1, st, er, pb, st2, er2].forEach(function (m) { m.delete(); });
+    var RS = Judge.ransacSim(P, Q, P.length / 2, 3.0, 150);
+    if (!RS) return null;
+    var e2 = Judge.applySim(RS.T, eA[0], eA[1]), r2 = Judge.applySim(RS.T, rA[0], rA[1]);
+    out = { eye: { x: e2[0] / W, y: e2[1] / H }, ear: { x: r2[0] / W, y: r2[1] / H }, inliers: RS.inliers.length, err: RS.err };
+  } finally { A.delete(); B.delete(); corners.delete(); none.delete(); }
+  return out;
+}
+
+// ---------- 画像処理の補助 ----------
+var scratch = mkCanvas(128, 128), scratchCtx = scratch.getContext('2d', { willReadFrequently: true });
+function sampleGray(src, sx, sy, sw, sh, ow, oh) {
+  if (scratch.width !== ow || scratch.height !== oh) { scratch.width = ow; scratch.height = oh; }
+  scratchCtx.drawImage(src, sx, sy, sw, sh, 0, 0, ow, oh);
+  var id = scratchCtx.getImageData(0, 0, ow, oh);
+  return Judge.toGray(id.data, ow * oh, new Uint8Array(ow * oh));
+}
+var NCC_SIZE = 128;
+function edgeTemplate(src, W, H, roiN) {
+  if (!roiN || roiN.w <= 0 || roiN.h <= 0) return null;
+  var g = sampleGray(src, roiN.x * W, roiN.y * H, roiN.w * W, roiN.h * H, NCC_SIZE, NCC_SIZE);
+  return Judge.edgeMap(g, NCC_SIZE, NCC_SIZE);
+}
+function headRoiA(pts, aW, aH) {
+  var e = [pts.eye.x * aW, pts.eye.y * aH], a = [pts.ear.x * aW, pts.ear.y * aH];
+  return Judge.trackRoi(e, a, aW, aH, e[0] >= a[0] ? 1 : -1);
+}
+function computeNcc(srcCanvas, W, H) {
+  if (!S.ref || !S.ref.nccT) return null;
+  var t = edgeTemplate(srcCanvas, W, H, S.ref.nccRoiN);
+  return t ? Judge.ncc(S.ref.nccT, t) : null;
+}
+
+// ---------- 基準データの準備 ----------
+async function prepareRef(ref) {
+  var bmp = await createImageBitmap(ref.photo);
+  var W = bmp.width, H = bmp.height, aw = S.settings.analysisWidth, ah = Math.round(aw * H / W);
+  var ana = mkCanvas(aw, ah), ax = ana.getContext('2d', { willReadFrequently: true });
+  ax.drawImage(bmp, 0, 0, aw, ah);
+  var gray = Judge.toGray(ax.getImageData(0, 0, aw, ah).data, aw * ah, new Uint8Array(aw * ah));
+  var em = Judge.edgeMap(gray, aw, ah);
+  var sorted = Array.from(em.filter(function (_, i) { return i % 7 === 0; })).sort(function (a, b) { return a - b; });
+  var thr = sorted[Math.floor(sorted.length * 0.9)] || 30;
+  var con = mkCanvas(aw, ah), cx = con.getContext('2d'), cid = cx.createImageData(aw, ah);
+  for (var i = 0; i < em.length; i++) if (em[i] > thr) { cid.data[4 * i] = 0; cid.data[4 * i + 1] = 255; cid.data[4 * i + 2] = 255; cid.data[4 * i + 3] = 220; }
+  cx.putImageData(cid, 0, 0);
+  var sign = ref.eye.x >= ref.ear.x ? 1 : -1;
+  var pr = Judge.profileRoi([ref.eye.x * W, ref.eye.y * H], [ref.ear.x * W, ref.ear.y * H], W, H, sign);
+  var roiN = { x: pr.x / W, y: pr.y / H, w: pr.w / W, h: pr.h / H };
+  ref._bmp = bmp; ref._ana = ana; ref._contour = con; ref.nccRoiN = roiN;
+  ref.nccT = edgeTemplate(bmp, W, H, roiN);
+  return ref;
+}
+
+// ---------- センサー ----------
+function getAngle() {
+  var a = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle
+    : (typeof window.orientation === 'number' ? window.orientation : 0);
+  a = ((a % 360) + 360) % 360;
+  return a === 270 ? -90 : a;
+}
+function isLandscape() { var a = getAngle(); return a === 90 || a === -90; }
+function onMotion(e) {
+  var g = e.accelerationIncludingGravity;
+  if (g && g.x != null) {
+    var m = S.motion, k = 0.12;
+    if (!m.g) m.g = { x: g.x, y: g.y, z: g.z };
+    else { m.g.x += k * (g.x - m.g.x); m.g.y += k * (g.y - m.g.y); m.g.z += k * (g.z - m.g.z); }
+    var ang = Judge.motionAngles(m.g, getAngle());
+    m.rawPitch = (S.settings.pitchInvert ? -1 : 1) * ang.pitch; m.rawRoll = ang.roll;
+    m.pitch = m.rawPitch - S.settings.pitchOffset; m.roll = m.rawRoll - S.settings.rollOffset;
+  }
+  var rr = e.rotationRate;
+  if (rr && rr.alpha != null) {
+    var mag = Math.hypot(rr.alpha || 0, rr.beta || 0, rr.gamma || 0);
+    S.motion.rot = S.motion.rot == null ? mag : S.motion.rot + 0.2 * (mag - S.motion.rot);
+  }
+}
+
+// ---------- 音声 ----------
+var Voice = {
+  lastText: '', lastAt: 0,
+  unlock: function () {
+    try { var u = new SpeechSynthesisUtterance(''); u.lang = 'ja-JP'; speechSynthesis.speak(u); } catch (e) {}
+    try { S.audio = S.audio || new (window.AudioContext || window.webkitAudioContext)(); S.audio.resume(); } catch (e) {}
+  },
+  say: function (text, force) {
+    if (!S.settings.voice || !text || !window.speechSynthesis) return;
+    var now = performance.now();
+    if (!force && text === Voice.lastText && now - Voice.lastAt < 3000) return;
+    if (!force && now - Voice.lastAt < 2000) return;
+    if (!force && speechSynthesis.speaking) return;
+    if (force) speechSynthesis.cancel();
+    var u = new SpeechSynthesisUtterance(text); u.lang = 'ja-JP'; u.rate = 1.05;
+    speechSynthesis.speak(u); Voice.lastText = text; Voice.lastAt = now;
+  },
+  shutter: function () {
+    var a = S.audio; if (!a) return;
+    try {
+      var len = Math.floor(a.sampleRate * 0.09), b = a.createBuffer(1, len, a.sampleRate), d = b.getChannelData(0);
+      for (var i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3) * (i < len * 0.4 ? 1 : 0.5);
+      var s = a.createBufferSource(); s.buffer = b; s.connect(a.destination); s.start();
+    } catch (e) {}
+  }
+};
+
+// ---------- セッション開始 ----------
+async function startSession() {
+  var pid = $('#inPid').value.trim().toUpperCase();
+  if (!/^[A-Z0-9_-]+$/.test(pid)) { alert('参加者IDを入力してください(英数字。例: P01)'); return; }
+  // iOS: 許可の要求はタップの中で最初に行う
+  var motionP = (window.DeviceMotionEvent && typeof DeviceMotionEvent.requestPermission === 'function')
+    ? DeviceMotionEvent.requestPermission().catch(function () { return 'denied'; }) : Promise.resolve('granted');
+  Voice.unlock();
+  var tp = $('#inTp').value;
+  var sess = { pid: pid, tp: tp, isT0: tp === 'T0', follow: tp !== 'T0', faceDir: $('#inFace').value, tripodMemo: $('#inTripod').value.trim() };
+  var camP = navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { exact: 'environment' }, width: { ideal: 4032 }, height: { ideal: 3024 } } })
+    .catch(function () { return navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: 'environment', width: { ideal: 4032 }, height: { ideal: 3024 } } }); });
+  var perm = await motionP;
+  var stream;
+  try { stream = await camP; } catch (e) { alert('カメラを使えません: ' + e.message + '\nhttps で開いているか、カメラの許可を確認してください。'); return; }
+  if (perm !== 'granted') toast('傾きセンサーが許可されませんでした。傾きの条件は満たせません。', 4000);
+
+  var ref = await DB.get('refs', pid).catch(function () { return null; });
+  if (sess.follow) {
+    if (!ref) { stream.getTracks().forEach(function (t) { t.stop(); }); alert(pid + ' の基準データ(T0)がありません。先に T0 を撮るか、基準データを読み込んでください。'); return; }
+    S.ref = await prepareRef(ref);
+    S.orientExpected = ref.orientAngle;
+    S.d0 = ref.d0;
+    if (ref.faceDir && ref.faceDir !== sess.faceDir) toast('顔の向きの設定が T0 と違います(T0: ' + (ref.faceDir === 'right' ? '右向き' : '左向き') + ')', 5000);
+  } else {
+    S.ref = null; S.d0 = null;
+    if (!isLandscape()) { stream.getTracks().forEach(function (t) { t.stop(); }); alert('スマホを横向きにしてから開始してください(T0 の向きが基準になります)。'); return; }
+    S.orientExpected = getAngle();
+  }
+  S.refExists = !!ref;
+  S.sess = sess;
+  S.stream = stream; S.track = stream.getVideoTracks()[0];
+  try { var caps = S.track.getCapabilities ? S.track.getCapabilities() : {}; if (caps.zoom) await S.track.applyConstraints({ advanced: [{ zoom: 1 }] }); } catch (e) {}
+  var v = $('#video'); v.srcObject = stream; try { await v.play(); } catch (e) {}
+  window.addEventListener('devicemotion', onMotion);
+  requestWake();
+  S.tracker = null; S.pts = null; S.hist = []; S.armed = false; S.d0Pending = false;
+  $('#selOv').value = S.settings.overlay;
+  updateSessInfo(); updateArmBtn();
+  show('shoot');
+  S.paused = false; loop();
+}
+function updateSessInfo() {
+  var s = S.sess, st = S.track && S.track.getSettings ? S.track.getSettings() : {};
+  var h = '<b>' + s.pid + ' / ' + s.tp + '</b> · ' + (s.faceDir === 'right' ? '右向き' : '左向き') + ' · 横向き ' + S.orientExpected + '°<br>' +
+    '解像度 ' + (st.width || S.W) + '×' + (st.height || S.H) + (S.settings.semiAuto ? ' · <span class="warn">半自動</span>' : '');
+  if (S.ref) h += '<br>T0: ' + S.ref.W + '×' + S.ref.H + ' · d0 ' + F(S.ref.d0 * 100, 2) + '%';
+  $('#sessInfo').innerHTML = h;
+  $('#btn900').style.display = s.isT0 ? '' : 'none';
+  $('#btn900').classList.toggle('on', !!S.d0 || S.d0Pending);
+  $('#btn900').textContent = (S.d0 || S.d0Pending) ? '900 mm 確認済み(押すと取り直し)' : '900 mm を確認した';
+  $('#btnPick').style.display = S.settings.semiAuto ? 'none' : '';
+}
+async function requestWake() {
+  try { if (navigator.wakeLock) S.wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
+}
+document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible' && S.stream) requestWake(); });
+
+function endSession() {
+  S.paused = true;
+  if (S.stream) S.stream.getTracks().forEach(function (t) { t.stop(); });
+  S.stream = null;
+  if (S.tracker) { S.tracker.release(); S.tracker = null; }
+  window.removeEventListener('devicemotion', onMotion);
+  try { if (S.wakeLock) S.wakeLock.release(); } catch (e) {}
+  S.stillCanvas = null; S.cap = null;
+  show('start'); refreshStart();
+}
+
+// ---------- 解析ループ ----------
+function ensureAna(W, H) {
+  var aw = S.settings.analysisWidth, ah = Math.round(aw * H / W);
+  if (S.ana && S.ana.w === aw && S.ana.h === ah) return;
+  var c = mkCanvas(aw, ah);
+  S.ana = { cv: c, ctx: c.getContext('2d', { willReadFrequently: true }), w: aw, h: ah, gray: new Uint8Array(aw * ah) };
+  S.aW = aw; S.aH = ah;
+}
+var loopId = 0;
+function loop(id) {
+  if (id === undefined) id = ++loopId;      // 新しく始めるときは古いループを止める
+  if (id !== loopId || S.paused || !S.stream) return;
+  var t0 = performance.now();
+  try { tick(t0); } catch (e) { console.error(e); $('#dbg').textContent = 'エラー: ' + e.message; }
+  var dt = performance.now() - t0;
+  S.loopHz = S.loopHz ? S.loopHz * 0.9 + 0.1 * (1000 / Math.max(66, dt)) : 15;
+  setTimeout(function () { loop(id); }, Math.max(0, 66 - dt));
+}
+function tick(now) {
+  var v = $('#video');
+  if (v.readyState < 2 || !v.videoWidth) return;
+  var W = v.videoWidth, H = v.videoHeight;
+  if (W !== S.W || H !== S.H) {
+    if (S.W && S.tracker) { S.tracker.release(); S.tracker = null; S.pts = null; toast('映像の向き・解像度が変わりました。点を指定し直してください。'); }
+    S.W = W; S.H = H; updateSessInfo();
+  }
+  ensureAna(W, H);
+  var A = S.ana;
+  A.ctx.drawImage(v, 0, 0, A.w, A.h);
+  var id = A.ctx.getImageData(0, 0, A.w, A.h);
+  Judge.toGray(id.data, A.w * A.h, A.gray);
+
+  var semi = S.settings.semiAuto;
+  var trackRes = null;
+  if (!semi && S.tracker) {
+    trackRes = S.tracker.track(A.gray);
+    if (trackRes.ok) { S.pts = S.tracker.points(); S.lostAt = 0; }
+    else if (!S.lostAt) S.lostAt = now;
+  }
+  if (!semi && !S.tracker && LIB.pose && now - S.lastPoseAt > 300) { S.rough = detectRough(A.cv); S.lastPoseAt = now; }
+
+  var inp = {
+    orientOk: getAngle() === S.orientExpected,
+    pitch: S.motion.pitch, roll: S.motion.roll, rotRate: S.motion.rot,
+    W: W, H: H, d0: S.d0, follow: S.sess.follow, isT0: S.sess.isT0, ref: S.ref, refSharp: S.ref ? S.ref.sharp : null,
+    armed: S.armed, semi: semi, lostLong: !!(S.lostAt && now - S.lostAt > 1500)
+  };
+  if (semi) {
+    inp.frameDiff = frameDiff(A, now);
+  } else if (S.pts && S.tracker) {
+    inp.eye = S.pts.eye; inp.ear = S.pts.ear; inp.track = trackRes;
+    if (trackRes && trackRes.ok) { S.hist.push({ t: now, eye: S.pts.eye, ear: S.pts.ear }); }
+    S.hist = S.hist.filter(function (h) { return now - h.t < 1000; });
+    inp.stillPct = Judge.stillRangePct(S.hist, now, 500, H / W);
+    inp.sharp = Judge.lapVar(A.gray, A.w, headRoiA(S.pts, A.w, A.h));
+    if (S.sess.follow) inp.ncc = computeNcc(A.cv, A.w, A.h);
+  }
+  var R = Judge.evaluate(inp, S.settings);
+  S.lastEval = R; S.lastInp = inp;
+  renderShoot(R, inp, now);
+
+  // 自動シャッター
+  if (S.armed && R.allOk && !S.capturing) {
+    if (!S.holdStart) S.holdStart = now;
+    var p = (now - S.holdStart) / (S.settings.holdSec * 1000);
+    $('#holdbar').style.width = Math.min(100, p * 100) + '%';
+    if (p >= 1) { S.holdStart = 0; capture(semi ? 'semi' : 'auto'); }
+  } else { S.holdStart = 0; $('#holdbar').style.width = '0'; }
+
+  if (S.armed && R.guide.speak && R.guide.who === 'sub') Voice.say(R.guide.speak);
+}
+function frameDiff(A, now) {
+  // 半自動用: 中央の領域を間引いて 0.5 秒前と比べる
+  var step = 6, w = A.w, h = A.h, arr = [];
+  for (var y = Math.floor(h * 0.15); y < h * 0.85; y += step) for (var x = Math.floor(w * 0.2); x < w * 0.8; x += step) arr.push(A.gray[y * w + x]);
+  var snaps = S.diffSnaps;
+  if (!snaps.length || now - snaps[snaps.length - 1].t > 100) snaps.push({ t: now, a: arr });
+  while (snaps.length && now - snaps[0].t > 700) snaps.shift();
+  var old = snaps.find(function (s) { return now - s.t >= 450; });
+  if (!old || old.a.length !== arr.length) return null;
+  var s = 0; for (var i = 0; i < arr.length; i++) s += Math.abs(arr[i] - old.a[i]);
+  return s / arr.length;
+}
+
+// ---------- 撮影画面の描画 ----------
+function contentRect(el, W, H) {
+  var dpr = window.devicePixelRatio || 1, cw = el.clientWidth * dpr, ch = el.clientHeight * dpr;
+  var s = Math.min(cw / W, ch / H);
+  return { x: (cw - W * s) / 2, y: (ch - H * s) / 2, w: W * s, h: H * s, s: s, dpr: dpr, cw: cw, ch: ch };
+}
+function renderShoot(R, inp, now) {
+  var ov = $('#ov'), stage = $('#stage');
+  var cr = contentRect(stage, S.W, S.H);
+  if (ov.width !== Math.round(cr.cw) || ov.height !== Math.round(cr.ch)) { ov.width = Math.round(cr.cw); ov.height = Math.round(cr.ch); }
+  var c = ov.getContext('2d'); c.clearRect(0, 0, ov.width, ov.height);
+  var P = function (p) { return [cr.x + p.x * cr.w, cr.y + p.y * cr.h]; };
+  var d = cr.dpr;
+  // T0 の重ね表示
+  var mode = S.settings.overlay;
+  if (S.ref && mode !== 'none') {
+    c.save(); c.globalAlpha = mode === 'blend' ? 0.4 : 0.85;
+    c.drawImage(mode === 'blend' ? S.ref._ana : S.ref._contour, cr.x, cr.y, cr.w, cr.h); c.restore();
+  }
+  // 中央の行(レンズの高さ)
+  c.save(); c.setLineDash([10 * d, 8 * d]); c.strokeStyle = 'rgba(255,255,255,.7)'; c.lineWidth = 1.5 * d;
+  c.beginPath(); c.moveTo(cr.x, cr.y + cr.h / 2); c.lineTo(cr.x + cr.w, cr.y + cr.h / 2); c.stroke(); c.restore();
+  // 水平器(実際の水平方向)
+  if (inp.roll != null) {
+    var rr = -inp.roll * Math.PI / 180, L = cr.w * 0.18, cx0 = cr.x + cr.w / 2, cy0 = cr.y + cr.h / 2;
+    var lvOk = Math.abs(inp.roll) <= S.settings.tolRoll && inp.pitch != null && Math.abs(inp.pitch) <= S.settings.tolPitch;
+    c.strokeStyle = lvOk ? '#2ecc71' : '#ffb020'; c.lineWidth = 3 * d;
+    c.beginPath(); c.moveTo(cx0 - L * Math.cos(rr), cy0 + L * Math.sin(rr)); c.lineTo(cx0 + L * Math.cos(rr), cy0 - L * Math.sin(rr)); c.stroke();
+    if (inp.pitch != null) { c.fillStyle = c.strokeStyle; c.beginPath(); c.arc(cx0, cy0 - Math.max(-1, Math.min(1, inp.pitch / 5)) * cr.h * 0.15, 6 * d, 0, 7); c.fill(); }
+  }
+  // 目標(T0 の点)
+  if (S.ref) {
+    var rad = cr.w * S.settings.tolPosPct / 100;
+    [['eye', '#ff5c8a'], ['ear', '#4dabff']].forEach(function (k) {
+      var q = P(S.ref[k[0]]);
+      c.save(); c.setLineDash([5 * d, 4 * d]); c.strokeStyle = k[1]; c.lineWidth = 2 * d;
+      c.beginPath(); c.arc(q[0], q[1], Math.max(rad, 6 * d), 0, 7); c.stroke(); c.restore();
+      if (inp.eye) {
+        var p = P(inp[k[0]]);
+        if (Math.hypot(p[0] - q[0], p[1] - q[1]) > rad) arrow(c, p, q, k[1], d);
+      }
+    });
+  }
+  // 現在の点と HRL
+  var pts = inp.eye ? { eye: inp.eye, ear: inp.ear } : (S.rough && !S.tracker ? S.rough : null);
+  if (pts) {
+    var rough = !inp.eye;
+    var e = P(pts.eye), a = P(pts.ear);
+    var hrlC = R.conds[4];
+    c.save(); if (rough) c.setLineDash([6 * d, 6 * d]);
+    c.strokeStyle = rough ? '#ffd166' : (hrlC.ok ? '#2ecc71' : '#ff5a5f'); c.lineWidth = 2.5 * d;
+    c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(e[0], e[1]); c.stroke(); c.restore();
+    dot(c, e, '#ff5c8a', d, rough); dot(c, a, '#4dabff', d, rough);
+    if (rough) { c.fillStyle = '#ffd166'; c.font = (13 * d) + 'px sans-serif'; c.fillText('推定(目安)', a[0] + 8 * d, a[1] - 10 * d); }
+  }
+  // デバッグ
+  if (S.settings.debug && S.tracker) {
+    var t = S.tracker, sx = cr.w / S.aW, sy = cr.h / S.aH;
+    c.fillStyle = '#0f0';
+    t.inPts.forEach(function (p) { c.fillRect(cr.x + p[0] * sx - d, cr.y + p[1] * sy - d, 2 * d, 2 * d); });
+    if (S.pts) {
+      var hr = headRoiA(S.pts, S.aW, S.aH); c.strokeStyle = '#0f0'; c.lineWidth = d; c.strokeRect(cr.x + hr.x * sx, cr.y + hr.y * sy, hr.w * sx, hr.h * sy);
+    }
+    if (S.ref) { var rn = S.ref.nccRoiN; c.strokeStyle = '#0ff'; c.strokeRect(cr.x + rn.x * cr.w, cr.y + rn.y * cr.h, rn.w * cr.w, rn.h * cr.h); }
+  }
+  // 案内
+  var gd = $('#guide'); gd.textContent = R.guide.text; gd.classList.toggle('ok', !!R.guide.ok);
+  // 警告
+  var w = [];
+  if (S.ref && (S.ref.W !== S.W || S.ref.H !== S.H)) w.push('解像度が T0 と違います(T0 ' + S.ref.W + '×' + S.ref.H + ')');
+  if (!LIB.cv && !S.settings.semiAuto) w.push('OpenCV が使えないため追跡できません(設定で半自動に)');
+  if (S.capturing) w.push('撮影中…');
+  $('#warn').textContent = w.join(' / ');
+  // 条件の一覧
+  $('#condTable').innerHTML = condRows(R.conds);
+  if (S.settings.debug) $('#dbg').textContent = F(S.loopHz, 1) + ' Hz · 特徴点 ' + (S.tracker ? S.tracker.N : 0) + ' · raw P ' + F(S.motion.rawPitch, 2) + ' R ' + F(S.motion.rawRoll, 2);
+  else $('#dbg').textContent = '';
+}
+function condRows(C) {
+  return C.map(function (c) {
+    return '<tr><td>' + c.id + '</td><td>' + c.label + '<div class="mut">' + c.tol + '</div></td><td class="v">' + c.val + '</td><td><span class="dot ' + (c.na ? 'na' : (c.ok ? 'ok' : '')) + '"></span></td></tr>';
+  }).join('');
+}
+function dot(c, p, col, d, hollow) {
+  c.beginPath(); c.arc(p[0], p[1], 5 * d, 0, 7);
+  if (hollow) { c.strokeStyle = col; c.lineWidth = 2 * d; c.stroke(); } else { c.fillStyle = col; c.fill(); c.strokeStyle = '#000'; c.lineWidth = d; c.stroke(); }
+}
+function arrow(c, p, q, col, d) {
+  var ang = Math.atan2(q[1] - p[1], q[0] - p[0]), len = Math.hypot(q[0] - p[0], q[1] - p[1]);
+  var L = Math.min(len, 60 * d), ex = p[0] + Math.cos(ang) * L, ey = p[1] + Math.sin(ang) * L;
+  c.strokeStyle = col; c.fillStyle = col; c.lineWidth = 2.5 * d;
+  c.beginPath(); c.moveTo(p[0], p[1]); c.lineTo(ex, ey); c.stroke();
+  c.beginPath(); c.moveTo(ex, ey); c.lineTo(ex - 9 * d * Math.cos(ang - 0.5), ey - 9 * d * Math.sin(ang - 0.5)); c.lineTo(ex - 9 * d * Math.cos(ang + 0.5), ey - 9 * d * Math.sin(ang + 0.5)); c.closePath(); c.fill();
+}
+function updateArmBtn() {
+  var b = $('#btnArm'); b.classList.toggle('on', S.armed); b.textContent = S.armed ? '撮影待機を止める' : '撮影待機を始める';
+}
+
+// ---------- 撮影 ----------
+function grabFull() {
+  var v = $('#video'), c = mkCanvas(v.videoWidth, v.videoHeight);
+  c.getContext('2d').drawImage(v, 0, 0); return c;
+}
+async function capture(mode) {
+  if (S.capturing) return;
+  S.capturing = true;
+  try {
+    var W = S.W, H = S.H;
+    var roiN = null;
+    if (S.pts) { var hr = headRoiA(S.pts, S.aW, S.aH); roiN = { x: hr.x / S.aW, y: hr.y / S.aH, w: hr.w / S.aW, h: hr.h / S.aH }; }
+    if (!roiN || roiN.w <= 0) roiN = { x: 0.25, y: 0.2, w: 0.5, h: 0.6 };
+    var best = null, bestSharp = -1, motionAt = null;
+    for (var i = 0; i < 3; i++) {
+      var c = grabFull();
+      var r = { x: Math.round(roiN.x * W), y: Math.round(roiN.y * H), w: Math.round(roiN.w * W), h: Math.round(roiN.h * H) };
+      var g = Judge.toGray(c.getContext('2d', { willReadFrequently: true }).getImageData(r.x, r.y, r.w, r.h).data, r.w * r.h, new Uint8Array(r.w * r.h));
+      var sv = Judge.lapVar(g, r.w, { x: 0, y: 0, w: r.w, h: r.h }) || 0;
+      if (sv > bestSharp) { bestSharp = sv; best = c; }
+      if (i === 0) motionAt = { pitch: S.motion.pitch, roll: S.motion.roll, rot: S.motion.rot };
+      if (i < 2) await sleep(100);
+    }
+    var cap = {
+      mode: mode, canvas: best, W: W, H: H, time: new Date(),
+      pitch: motionAt.pitch, roll: motionAt.roll, rotRate: motionAt.rot,
+      orientOk: getAngle() === S.orientExpected, orientAngle: getAngle(),
+      stillPct: S.lastInp ? S.lastInp.stillPct : null, frameDiff: S.lastInp ? S.lastInp.frameDiff : null,
+      edited: false, track: null, trackNa: false, refined: false
+    };
+    // 判定用の縮小画像
+    var aw = S.settings.analysisWidth, ah = Math.round(aw * H / W), ac = mkCanvas(aw, ah), ax = ac.getContext('2d', { willReadFrequently: true });
+    ax.drawImage(best, 0, 0, aw, ah);
+    cap.ana = { cv: ac, w: aw, h: ah, gray: Judge.toGray(ax.getImageData(0, 0, aw, ah).data, aw * ah, new Uint8Array(aw * ah)) };
+
+    if (mode === 'semi' || !S.tracker || !S.pts) {
+      // 点は確認画面(またはその前の点の指定)で決める
+      if (S.pts && S.tracker) { cap.eye = S.pts.eye; cap.ear = S.pts.ear; cap.track = S.lastInp && S.lastInp.track; }
+    } else {
+      var rf = refineFull(S.stillCanvas, best, S.tracker.T, S.stillPts, W, H, S.aW);
+      if (rf) { cap.eye = rf.eye; cap.ear = rf.ear; cap.track = { inliers: rf.inliers, err: rf.err * S.aW / W, errFull: rf.err }; cap.refined = true; }
+      else { cap.eye = S.pts.eye; cap.ear = S.pts.ear; cap.track = { inliers: 0, err: 99 }; }
+    }
+    if (mode === 'auto') {
+      var R = evalCap(cap);
+      if (!R.allOk) {
+        toast('位置合わせの再判定で外れたため破棄しました: ' + R.conds.filter(function (c) { return c.bad; }).map(function (c) { return c.label; }).join('、'), 3500);
+        return;
+      }
+    }
+    Voice.shutter(); Voice.say('撮影しました', true);
+    S.armed = false; updateArmBtn();
+    S.cap = cap;
+    cap.blobP = new Promise(function (res) { best.toBlob(res, 'image/jpeg', 0.95); });
+    S.paused = true;
+    if (mode === 'semi' || !cap.eye) { cap.trackNa = mode === 'semi' || !S.tracker; openEditor('semi'); }
+    else openEditor('confirm');
+  } finally { S.capturing = false; }
+}
+function evalCap(cap) {
+  if (cap.eye) {
+    var hr = headRoiA({ eye: cap.eye, ear: cap.ear }, cap.ana.w, cap.ana.h);
+    cap.sharp = Judge.lapVar(cap.ana.gray, cap.ana.w, hr);
+  } else cap.sharp = null;
+  cap.ncc = S.sess.follow ? computeNcc(cap.ana.cv, cap.ana.w, cap.ana.h) : null;
+  var d0 = S.d0;
+  if (!d0 && S.sess.isT0 && S.d0Pending && cap.eye) d0 = Judge.normDist(cap.eye, cap.ear, cap.W, cap.H);
+  cap.d0Used = d0;
+  var inp = {
+    orientOk: cap.orientOk, pitch: cap.pitch, roll: cap.roll, rotRate: cap.rotRate,
+    eye: cap.eye, ear: cap.ear, W: cap.W, H: cap.H, track: cap.track, trackNa: cap.trackNa,
+    d0: d0, follow: S.sess.follow, isT0: S.sess.isT0, ref: S.ref, refSharp: S.ref ? S.ref.sharp : null,
+    ncc: cap.ncc, stillPct: cap.stillPct, sharp: cap.sharp, semi: false, armed: false
+  };
+  if (cap.trackNa) {
+    // 半自動: 静止の判定は撮影時のフレーム差と回転速度で行った
+    inp.stillPct = cap.frameDiff != null && cap.frameDiff <= S.settings.tolFrameDiff ? 0 : (cap.frameDiff == null ? null : 99);
+  }
+  var R = Judge.evaluate(inp, S.settings);
+  cap.eval = R;
+  return R;
+}
+
+// ---------- エディタ(点の指定・確認・校正) ----------
+var Ed = {
+  cv: null, ctx: null, img: null, W: 0, H: 0, pts: [], active: 0,
+  view: { mode: 'all', zoom: 4, cx: 0.5, cy: 0.5 }, kind: null, drag: null, extra: null, onChange: null,
+  init: function () {
+    Ed.cv = $('#edCv'); Ed.ctx = Ed.cv.getContext('2d');
+    Ed.cv.addEventListener('pointerdown', Ed.down);
+    Ed.cv.addEventListener('pointermove', Ed.move);
+    Ed.cv.addEventListener('pointerup', Ed.up);
+    Ed.cv.addEventListener('pointercancel', Ed.up);
+    window.addEventListener('resize', function () { if ($('#edit').classList.contains('active')) setTimeout(function () { Ed.resize(); }, 200); });
+  },
+  resize: function () {
+    var dpr = window.devicePixelRatio || 1, r = Ed.cv.getBoundingClientRect();
+    Ed.cv.width = Math.round(r.width * dpr); Ed.cv.height = Math.round(r.height * dpr); Ed.dpr = dpr; Ed.draw();
+  },
+  geom: function () {
+    var cw = Ed.cv.width, ch = Ed.cv.height, fit = Math.min(cw / Ed.W, ch / Ed.H), s = fit, cx = 0.5, cy = 0.5;
+    if (Ed.view.mode !== 'all') { s = fit * Ed.view.zoom; cx = Ed.view.cx; cy = Ed.view.cy; }
+    return { s: s, ox: cw / 2 - cx * Ed.W * s, oy: ch / 2 - cy * Ed.H * s, fit: fit };
+  },
+  toS: function (p) { var g = Ed.geom(); return [g.ox + p.x * Ed.W * g.s, g.oy + p.y * Ed.H * g.s]; },
+  pos: function (e) { var r = Ed.cv.getBoundingClientRect(); return [(e.clientX - r.left) * Ed.dpr, (e.clientY - r.top) * Ed.dpr]; },
+  down: function (e) {
+    Ed.cv.setPointerCapture(e.pointerId);
+    var p = Ed.pos(e), near = -1, nd = 46 * Ed.dpr;
+    Ed.pts.forEach(function (q, i) { var s = Ed.toS(q), dd = Math.hypot(s[0] - p[0], s[1] - p[1]); if (dd < nd) { nd = dd; near = i; } });
+    Ed.drag = { start: p, moved: 0, idx: near, orig: near >= 0 ? { x: Ed.pts[near].x, y: Ed.pts[near].y } : null };
+    if (near >= 0) { Ed.active = near; Ed.renderSeg(); }
+    Ed.draw();
+  },
+  move: function (e) {
+    if (!Ed.drag) return;
+    var p = Ed.pos(e), g = Ed.geom(), D = Ed.drag;
+    D.moved = Math.max(D.moved, Math.hypot(p[0] - D.start[0], p[1] - D.start[1]));
+    if (D.idx >= 0) {
+      var q = Ed.pts[D.idx];
+      q.x = Math.min(1, Math.max(0, D.orig.x + (p[0] - D.start[0]) / (Ed.W * g.s)));
+      q.y = Math.min(1, Math.max(0, D.orig.y + (p[1] - D.start[1]) / (Ed.H * g.s)));
+      Ed.changed();
+    }
+  },
+  up: function (e) {
+    var D = Ed.drag; Ed.drag = null; if (!D) return;
+    if (D.idx < 0 && D.moved < 10 * Ed.dpr) {
+      var p = Ed.pos(e), g = Ed.geom(), q = Ed.pts[Ed.active];
+      q.x = Math.min(1, Math.max(0, (p[0] - g.ox) / (Ed.W * g.s))); q.y = Math.min(1, Math.max(0, (p[1] - g.oy) / (Ed.H * g.s)));
+      Ed.changed();
+    }
+    Ed.draw();
+  },
+  changed: function () { if (Ed.onChange) Ed.onChange(); Ed.draw(); },
+  setView: function (mode) {
+    if (mode === 'all') Ed.view.mode = 'all';
+    else { var q = Ed.pts[Ed.active]; Ed.view.mode = 'zoom'; Ed.view.cx = q.x; Ed.view.cy = q.y; }
+    Ed.draw();
+  },
+  renderSeg: function () {
+    $('#edPtSeg').innerHTML = Ed.pts.map(function (p, i) { return '<button class="sm' + (i === Ed.active ? ' on' : '') + '" data-i="' + i + '" style="border-color:' + p.color + '">' + p.label + '</button>'; }).join('');
+    $('#edPtSeg').querySelectorAll('button').forEach(function (b) {
+      b.onclick = function () { Ed.active = +b.dataset.i; Ed.renderSeg(); if (Ed.view.mode !== 'all') Ed.setView('active'); Ed.draw(); Ed.drawRef(); };
+    });
+  },
+  draw: function () {
+    if (!Ed.img) return;
+    var c = Ed.ctx, g = Ed.geom(), d = Ed.dpr || 1;
+    c.fillStyle = '#000'; c.fillRect(0, 0, Ed.cv.width, Ed.cv.height);
+    c.imageSmoothingEnabled = Ed.view.mode === 'all' || Ed.view.zoom < 3;
+    c.drawImage(Ed.img, g.ox, g.oy, Ed.W * g.s, Ed.H * g.s);
+    if (Ed.extra) Ed.extra(c, g, d);
+    Ed.pts.forEach(function (p, i) {
+      var s = Ed.toS(p), r = (i === Ed.active ? 14 : 10) * d;
+      c.strokeStyle = p.color; c.lineWidth = (i === Ed.active ? 2.5 : 1.5) * d;
+      c.beginPath(); c.arc(s[0], s[1], r, 0, 7); c.stroke();
+      c.beginPath(); c.moveTo(s[0] - r - 6 * d, s[1]); c.lineTo(s[0] - 3 * d, s[1]); c.moveTo(s[0] + 3 * d, s[1]); c.lineTo(s[0] + r + 6 * d, s[1]);
+      c.moveTo(s[0], s[1] - r - 6 * d); c.lineTo(s[0], s[1] - 3 * d); c.moveTo(s[0], s[1] + 3 * d); c.lineTo(s[0], s[1] + r + 6 * d); c.stroke();
+      c.fillStyle = p.color; c.font = 'bold ' + (13 * d) + 'px sans-serif'; c.fillText(p.label, s[0] + r + 4 * d, s[1] - r);
+    });
+    Ed.drawLoupe();
+  },
+  drawLoupe: function () {
+    var L = $('#loupe'), c = L.getContext('2d'), q = Ed.pts[Ed.active];
+    c.fillStyle = '#000'; c.fillRect(0, 0, L.width, L.height);
+    if (!q) return;
+    var span = 50;   // 元画像の 50 px 四方を表示
+    c.imageSmoothingEnabled = false;
+    c.drawImage(Ed.img, q.x * Ed.W - span / 2, q.y * Ed.H - span / 2, span, span, 0, 0, L.width, L.height);
+    c.strokeStyle = q.color; c.lineWidth = 2;
+    c.beginPath(); c.moveTo(L.width / 2, 0); c.lineTo(L.width / 2, L.height / 2 - 8); c.moveTo(L.width / 2, L.height / 2 + 8); c.lineTo(L.width / 2, L.height);
+    c.moveTo(0, L.height / 2); c.lineTo(L.width / 2 - 8, L.height / 2); c.moveTo(L.width / 2 + 8, L.height / 2); c.lineTo(L.width, L.height / 2); c.stroke();
+  },
+  // T0 の同じ部分(点の指定)/ T0 の写真(確認画面の「並べる」)
+  drawRef: function () {
+    var box = $('#edRefBox');
+    if (!S.ref || !(Ed.kind === 'points' || Ed.kind === 'semi' || (Ed.kind === 'confirm' && $('#selCmp').value === 'side'))) { box.style.display = 'none'; return; }
+    box.style.display = '';
+    var cv = $('#refCv'), c = cv.getContext('2d'), ref = S.ref, img = ref._bmp, W = img.width, H = img.height;
+    c.fillStyle = '#000'; c.fillRect(0, 0, cv.width, cv.height);
+    var key = Ed.pts[Ed.active] && Ed.pts[Ed.active].key, rp = ref[key];
+    var cx = 0.5, cy = 0.5, s = Math.min(cv.width / W, cv.height / H);
+    if (Ed.kind === 'confirm' && Ed.view.mode !== 'all') { cx = Ed.view.cx; cy = Ed.view.cy; s *= Ed.view.zoom; }
+    else if (Ed.kind !== 'confirm' && rp) { cx = rp.x; cy = rp.y; s = cv.width / 160; }   // T0 の 160 px 四方
+    var ox = cv.width / 2 - cx * W * s, oy = cv.height / 2 - cy * H * s;
+    c.drawImage(img, ox, oy, W * s, H * s);
+    [['eye', '#ff5c8a'], ['ear', '#4dabff']].forEach(function (k) {
+      var p = ref[k[0]], x = ox + p.x * W * s, y = oy + p.y * H * s;
+      c.strokeStyle = k[1]; c.lineWidth = 2; c.beginPath(); c.arc(x, y, 8, 0, 7); c.stroke();
+      c.beginPath(); c.moveTo(x - 14, y); c.lineTo(x + 14, y); c.moveTo(x, y - 14); c.lineTo(x, y + 14); c.stroke();
+    });
+    $('#edRefLabel').textContent = Ed.kind === 'confirm' ? 'T0 の写真(同じ範囲)' : 'T0 の同じ部分(' + (key === 'eye' ? '目尻' : '耳') + ')';
+  }
+};
+
+var DEF_TEXT = '<b style="color:#ff5c8a">目尻</b>: 上下のまぶたが外側で合わさる点<br><b style="color:#4dabff">耳</b>: 耳の付け根の最上点<br>点をドラッグするか、空いている所をタップすると選択中の点がそこへ移ります。';
+
+function initialPoints(still) {
+  var aw = 640, ah = Math.round(aw * still.height / still.width), sc = mkCanvas(aw, ah);
+  sc.getContext('2d').drawImage(still, 0, 0, aw, ah);
+  var r = detectRough(sc);
+  if (r) return r;
+  if (S.pts) return { eye: Object.assign({}, S.pts.eye), ear: Object.assign({}, S.pts.ear) };
+  if (S.ref) return { eye: Object.assign({}, S.ref.eye), ear: Object.assign({}, S.ref.ear) };
+  return S.sess.faceDir === 'right' ? { eye: { x: 0.56, y: 0.47 }, ear: { x: 0.47, y: 0.48 } } : { eye: { x: 0.44, y: 0.47 }, ear: { x: 0.53, y: 0.48 } };
+}
+
+function openEditor(kind) {
+  S.paused = true;
+  Ed.kind = kind; Ed.view = { mode: 'all', zoom: Ed.view.zoom || 4, cx: 0.5, cy: 0.5 }; Ed.active = 0;
+  var btns = $('#edBtns'), info = $('#edInfo');
+  $('#edCmpBox').style.display = 'none'; $('#edCond').innerHTML = '';
+  if (kind === 'points') {
+    var still = grabFull();
+    Ed.img = still; Ed.W = still.width; Ed.H = still.height; Ed.still = still;
+    var ip = initialPoints(still);
+    Ed.pts = [{ key: 'eye', label: '目尻', color: '#ff5c8a', x: ip.eye.x, y: ip.eye.y }, { key: 'ear', label: '耳', color: '#4dabff', x: ip.ear.x, y: ip.ear.y }];
+    $('#edTitle').textContent = '点の指定(静止画)';
+    $('#edDef').innerHTML = DEF_TEXT;
+    btns.innerHTML = '<button class="primary full" id="edOk">決定して追跡を始める</button><button class="full" id="edCancel">キャンセル</button>';
+    $('#edOk').onclick = decidePoints; $('#edCancel').onclick = backToShoot;
+    Ed.extra = extraLines; Ed.onChange = pickInfo; pickInfo();
+  } else if (kind === 'calib') {
+    var st2 = grabFull();
+    Ed.img = st2; Ed.W = st2.width; Ed.H = st2.height;
+    Ed.pts = [{ key: 'a', label: 'A', color: '#ffd166', x: 0.45, y: 0.5 }, { key: 'b', label: 'B', color: '#06d6a0', x: 0.55, y: 0.5 }];
+    $('#edTitle').textContent = 'カメラ校正';
+    $('#edDef').innerHTML = '900 mm の位置に置いた目盛り(例: 100 mm の線)の両端を A と B で指定してください。';
+    btns.innerHTML = '<label class="f full"><span>A–B の実際の長さ(mm)</span><input id="calLen" type="number" value="100" step="1"></label><button class="primary full" id="edOk">保存</button><button class="full" id="edCancel">キャンセル</button>';
+    $('#edOk').onclick = decideCalib; $('#edCancel').onclick = backToShoot;
+    Ed.extra = null; Ed.onChange = function () { var a = Ed.pts[0], b = Ed.pts[1]; info.textContent = 'A–B: ' + F(Math.hypot((a.x - b.x) * Ed.W, (a.y - b.y) * Ed.H), 1) + ' px'; }; Ed.onChange();
+  } else { // confirm / semi
+    var cap = S.cap;
+    Ed.img = cap.canvas; Ed.W = cap.W; Ed.H = cap.H;
+    var p0 = cap.eye ? { eye: cap.eye, ear: cap.ear } : initialPoints(cap.canvas);
+    Ed.pts = [{ key: 'eye', label: '目尻', color: '#ff5c8a', x: p0.eye.x, y: p0.eye.y }, { key: 'ear', label: '耳', color: '#4dabff', x: p0.ear.x, y: p0.ear.y }];
+    Ed.origPts = JSON.stringify(p0);
+    $('#edTitle').textContent = kind === 'semi' ? '確認(目尻と耳をタップ)' : '確認';
+    $('#edDef').innerHTML = kind === 'semi' ? DEF_TEXT : '点がずれていればドラッグで直せます(直したことは記録されます)。';
+    if (S.ref) $('#edCmpBox').style.display = '';
+    btns.innerHTML = '<button class="primary full" id="edOk">保存する</button><button class="full" id="edCancel">撮り直す</button>';
+    $('#edOk').onclick = saveCapture; $('#edCancel').onclick = function () { S.cap = null; backToShoot(); };
+    Ed.extra = extraConfirm; Ed.onChange = confirmInfo; confirmInfo();
+  }
+  Ed.renderSeg();
+  show('edit');
+  requestAnimationFrame(function () { Ed.resize(); Ed.drawRef(); });
+}
+function extraLines(c, g, d) {
+  // 中央の行と HRL
+  c.save(); c.setLineDash([10 * d, 8 * d]); c.strokeStyle = 'rgba(255,255,255,.6)'; c.lineWidth = 1.5 * d;
+  var y = g.oy + 0.5 * Ed.H * g.s; c.beginPath(); c.moveTo(0, y); c.lineTo(Ed.cv.width, y); c.stroke(); c.restore();
+  var e = Ed.toS(Ed.pts[0]), a = Ed.toS(Ed.pts[1]);
+  c.strokeStyle = '#ffd166'; c.lineWidth = 2 * d; c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(e[0], e[1]); c.stroke();
+}
+function extraConfirm(c, g, d) {
+  if (S.ref && $('#selCmp').value === 'blend') { c.save(); c.globalAlpha = 0.5; c.drawImage(S.ref._bmp, g.ox, g.oy, Ed.W * g.s, Ed.H * g.s); c.restore(); }
+  extraLines(c, g, d);
+  if (S.ref) {
+    [['eye', '#ff5c8a'], ['ear', '#4dabff']].forEach(function (k) {
+      var s = Ed.toS(S.ref[k[0]]); c.save(); c.setLineDash([4 * d, 4 * d]); c.strokeStyle = k[1]; c.lineWidth = 1.5 * d;
+      c.beginPath(); c.arc(s[0], s[1], 18 * d, 0, 7); c.stroke(); c.restore();
+    });
+  }
+}
+function curEdPts() { return { eye: { x: Ed.pts[0].x, y: Ed.pts[0].y }, ear: { x: Ed.pts[1].x, y: Ed.pts[1].y } }; }
+function pickInfo() {
+  var p = curEdPts(), d = Judge.normDist(p.eye, p.ear, Ed.W, Ed.H), h = '目尻–耳: ' + F(d * Ed.W, 1) + ' px';
+  var ref = S.ref;
+  if (ref && ref.d0) {
+    var ratio = d / ref.d0, ok = Math.abs(ratio - 1) <= 0.01;
+    h += '<br>T0 の d0 との比: <b class="' + (ok ? 'ok' : 'ng') + '">' + F(ratio, 3) + '</b>(900 mm を合わせた状態で ±1% 以内なら同じ場所)';
+  }
+  var hr = Judge.hrlRaise(p.eye, p.ear, Ed.W, Ed.H, S.motion.roll || 0);
+  h += '<br>HRL(参考): ' + F(hr, 2) + '°';
+  $('#edInfo').innerHTML = h; Ed.drawRef();
+}
+function confirmInfo() {
+  var cap = S.cap, p = curEdPts();
+  cap.eye = p.eye; cap.ear = p.ear;
+  cap.edited = JSON.stringify(p) !== Ed.origPts;
+  var R = evalCap(cap);
+  var bad = R.conds.filter(function (c) { return c.bad; });
+  var mode = cap.mode === 'auto' ? '自動' : (cap.mode === 'semi' ? '半自動' : '手動');
+  $('#edInfo').innerHTML = '撮影方式: ' + mode + (cap.edited ? ' · <span class="warn">点を修正</span>' : '') + (cap.refined ? ' · 最大解像度で位置合わせ済み' : '') +
+    (bad.length ? '<br><span class="ng">外れている条件: ' + bad.map(function (c) { return c.label; }).join('、') + '</span><br><span class="warn">案内: ' + R.guide.text + '</span>' : '<br><span class="ok">すべての条件を満たしています</span>');
+  $('#edCond').innerHTML = condRows(R.conds);
+  Ed.drawRef();
+}
+function decidePoints() {
+  if (!LIB.cv) { alert('OpenCV が読み込めていないため追跡できません。設定で「半自動」にしてください。'); return; }
+  var p = curEdPts(), still = Ed.still, W = still.width, H = still.height;
+  var aw = S.settings.analysisWidth, ah = Math.round(aw * H / W), c = mkCanvas(aw, ah), x = c.getContext('2d', { willReadFrequently: true });
+  x.drawImage(still, 0, 0, aw, ah);
+  var g = Judge.toGray(x.getImageData(0, 0, aw, ah).data, aw * ah, new Uint8Array(aw * ah));
+  if (S.tracker) S.tracker.release();
+  try { S.tracker = new Tracker(LIB.cv, g, aw, ah, p.eye, p.ear); }
+  catch (e) { console.error(e); alert('追跡の初期化に失敗しました: ' + e.message); S.tracker = null; return; }
+  if (S.tracker.N < S.settings.minInliers) toast('特徴点が少ない(' + S.tracker.N + '個)ため追跡が不安定かもしれません。髪や照明を確認してください。', 4500);
+  S.stillCanvas = still; S.stillPts = p; S.pts = p; S.hist = []; S.lostAt = 0;
+  backToShoot();
+}
+function decideCalib() {
+  var a = Ed.pts[0], b = Ed.pts[1], len = parseFloat($('#calLen').value);
+  var dn = Math.hypot(a.x - b.x, (a.y - b.y) * Ed.H / Ed.W);
+  if (!(len > 0) || dn <= 0) { alert('長さを確認してください'); return; }
+  S.settings.mmPerWidth = len / dn; S.settings.camCalAt = isoLocal(new Date()); S.settings.camCalRes = Ed.W + '×' + Ed.H;
+  saveSettings(); toast('カメラ校正を保存しました: 画面の横幅 = ' + F(S.settings.mmPerWidth, 0) + ' mm'); backToShoot();
+}
+function backToShoot() {
+  if (!S.stream) { show('start'); return; }
+  show('shoot'); S.paused = false; S.hist = []; S.diffSnaps = []; loop();
+}
+
+// ---------- 保存 ----------
+async function saveCapture() {
+  var cap = S.cap; if (!cap) return;
+  var sess = S.sess, R = cap.eval;
+  if (!cap.eye) { alert('目尻と耳を指定してください'); return; }
+  var fname = sess.pid + '_' + sess.tp + '_' + stamp(cap.time) + '.jpg';
+  var blob = await cap.blobP;
+  var file = new File([blob], fname, { type: 'image/jpeg' });
+  var shared = false;
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: fname }); shared = true; }
+    catch (e) { if (e && e.name === 'AbortError') { toast('保存をキャンセルしました'); return; } }
+  }
+  if (!shared) {
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = fname; document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 5000);
+  }
+  var v = R.vals, bad = R.conds.filter(function (c) { return c.bad; }).map(function (c) { return c.id + ':' + c.label; });
+  var rec = {
+    pid: sess.pid, tp: sess.tp, datetime: isoLocal(cap.time), filename: fname,
+    mode: cap.mode === 'auto' ? '自動' : (cap.mode === 'semi' ? '半自動' : '手動'), failed: bad.join(' / '), allOk: R.allOk,
+    width: cap.W, height: cap.H, orientAngle: cap.orientAngle, faceDir: sess.faceDir, tripodMemo: sess.tripodMemo,
+    pitch: v.pitch, roll: v.roll, hrl: v.hrl,
+    eyeX: cap.eye.x * cap.W, eyeY: cap.eye.y * cap.H, earX: cap.ear.x * cap.W, earY: cap.ear.y * cap.H,
+    pointSource: cap.edited ? '確認画面で修正' : (cap.trackNa ? 'タップ(半自動)' : '追跡'),
+    trackInliers: cap.track ? cap.track.inliers : null, trackErr: cap.track ? cap.track.err : null,
+    heightPct: v.heightPct, heightMm: v.heightMm, distMm: v.distMm, d0: cap.d0Used,
+    dEyePct: v.dEye, dEarPct: v.dEar, ncc: v.ncc, sharpness: cap.sharp, stillPct: cap.stillPct, rotRate: cap.rotRate,
+    settings: JSON.stringify(S.settings), appVersion: APP_VERSION
+  };
+  await DB.put('records', rec);
+  if (sess.isT0) {
+    var make = true;
+    if (S.refExists) make = confirm(sess.pid + ' の基準データ(T0)はすでにあります。この写真で作り直しますか?');
+    if (make) {
+      var d0 = cap.d0Used;
+      if (!d0 && confirm('900 mm の確認がされていません。この写真を撮ったとき、メジャーで 900 mm を確認していましたか?\n「OK」でこの写真の目尻–耳の距離を基準 d0 にします。')) d0 = Judge.normDist(cap.eye, cap.ear, cap.W, cap.H);
+      var ref = {
+        pid: sess.pid, createdAt: isoLocal(cap.time), photo: blob, W: cap.W, H: cap.H,
+        eye: cap.eye, ear: cap.ear, d0: d0 || null, hrl: v.hrl, pitch: v.pitch, roll: v.roll,
+        sharp: cap.sharp, orientAngle: cap.orientAngle, faceDir: sess.faceDir, tripodMemo: sess.tripodMemo,
+        filename: fname, appVersion: APP_VERSION
+      };
+      await DB.put('refs', ref);
+      S.refExists = true;
+      toast('保存し、基準データを作りました' + (d0 ? '' : '(d0 なし)'), 3500);
+    } else toast('保存しました(基準データはそのまま)');
+  } else toast('保存しました');
+  S.cap = null;
+  backToShoot();
+}
+
+// ---------- 基準データの書き出し・読み込み、CSV ----------
+function blobToDataURL(b) { return new Promise(function (res) { var r = new FileReader(); r.onload = function () { res(r.result); }; r.readAsDataURL(b); }); }
+async function exportRef() {
+  var pid = $('#inPid').value.trim().toUpperCase();
+  var ref = await DB.get('refs', pid);
+  if (!ref) { alert(pid + ' の基準データがありません'); return; }
+  var o = Object.assign({}, ref); o.photo = await blobToDataURL(ref.photo); o.format = 'profileCam-ref-v1';
+  downloadBlob(new Blob([JSON.stringify(o)], { type: 'application/json' }), 'ref_' + pid + '_T0.json');
+}
+async function importRef(file) {
+  try {
+    var o = JSON.parse(await file.text());
+    if (o.format !== 'profileCam-ref-v1' || !o.pid || !o.photo) throw new Error('形式が違います');
+    var exists = await DB.get('refs', o.pid);
+    if (exists && !confirm(o.pid + ' の基準データはすでにあります。上書きしますか?')) return;
+    o.photo = await (await fetch(o.photo)).blob(); delete o.format;
+    await DB.put('refs', o); toast(o.pid + ' の基準データを読み込みました'); $('#inPid').value = o.pid; refreshStart();
+  } catch (e) { alert('読み込めませんでした: ' + e.message); }
+}
+function downloadBlob(blob, name) {
+  var file = new File([blob], name, { type: blob.type });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) { navigator.share({ files: [file], title: name }).catch(function () {}); return; }
+  var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 5000);
+}
+var CSV_COLS = [['pid', '参加者ID'], ['tp', '時点'], ['datetime', '撮影日時'], ['filename', 'ファイル名'], ['mode', '撮影方式'], ['failed', '外れていた条件'],
+  ['width', '幅px'], ['height', '高さpx'], ['orientAngle', '横向きの角度'], ['faceDir', '顔の向き'], ['tripodMemo', '三脚の高さ'],
+  ['pitch', 'ピッチ°'], ['roll', 'ロール°'], ['hrl', 'HRL°(ロール補正)'], ['eyeX', '目尻x'], ['eyeY', '目尻y'], ['earX', '耳x'], ['earY', '耳y'],
+  ['pointSource', '点の決まり方'], ['trackInliers', '追跡の特徴点数'], ['trackErr', '追跡の誤差px'], ['heightPct', '高さのずれ%'], ['heightMm', '高さのずれmm'],
+  ['distMm', '推定距離mm'], ['d0', 'd0'], ['dEyePct', 'T0との目尻のずれ%'], ['dEarPct', 'T0との耳のずれ%'], ['ncc', '輪郭の一致度'], ['sharpness', '鮮明さ'],
+  ['stillPct', '点の動き%'], ['rotRate', '回転速度°/s'], ['settings', '設定値'], ['appVersion', 'アプリの版']];
+async function exportCsv() {
+  var recs = await DB.all('records');
+  if (!recs.length) { alert('記録がありません'); return; }
+  var q = function (v) { if (v == null) return ''; if (typeof v === 'number') return isFinite(v) ? String(Math.round(v * 10000) / 10000) : ''; return '"' + String(v).replace(/"/g, '""') + '"'; };
+  var lines = [CSV_COLS.map(function (c) { return q(c[1]); }).join(',')];
+  recs.forEach(function (r) { lines.push(CSV_COLS.map(function (c) { return q(r[c[0]]); }).join(',')); });
+  downloadBlob(new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv' }), 'records_' + stamp(new Date()) + '.csv');
+}
+async function refreshStart() {
+  try {
+    var refs = await DB.all('refs'), recs = await DB.all('records');
+    $('#recCount').textContent = '記録 ' + recs.length + ' 件';
+    $('#refList').textContent = refs.length ? '基準データあり: ' + refs.map(function (r) { return r.pid + '(' + r.createdAt + (r.d0 ? '' : '、d0なし') + ')'; }).join('、') : '基準データはまだありません';
+    var pid = $('#inPid').value.trim().toUpperCase(), r = refs.find(function (x) { return x.pid === pid; });
+    $('#refInfo').textContent = pid ? (r ? pid + ': 基準データあり(T1・T2 で使えます)' : pid + ': 基準データなし(まず T0 を撮ります)') : '';
+  } catch (e) {}
+}
+
+// ---------- 設定画面 ----------
+var SET_FIELDS = [
+  ['holdSec', '保持時間(秒)', 0.1], ['tolPitch', 'ピッチ ±°', 0.1], ['tolRoll', 'ロール ±°', 0.1],
+  ['minInliers', '追跡の特徴点 最少数', 1], ['maxTrackErr', '追跡の誤差 上限 px', 0.1],
+  ['tolHrl', 'HRL ±°', 0.1], ['tolHeightPct', '高さ ±%(画像の高さ)', 0.1],
+  ['refDistMm', '基準距離 mm', 1], ['tolDistMm', '距離 ±mm', 1],
+  ['tolPosPct', 'T0 との点のずれ ±%(画像の幅)', 0.05], ['minNcc', '輪郭の一致度 下限', 0.05],
+  ['tolStillPct', '静止: 点の動き %(画像の幅)', 0.01], ['tolRotRate', '静止: 回転速度 °/s', 0.5], ['tolFrameDiff', '静止(半自動): フレーム差', 0.1],
+  ['sharpRatio', '鮮明さ: T0 に対する比', 0.05], ['sharpMinT0', '鮮明さ: T0 の最低値', 1],
+  ['mmPerWidth', '900 mm での画面の横幅 mm', 1], ['analysisWidth', '判定用の縮小画像の横幅 px', 10]
+];
+function renderSettings() {
+  var s = S.settings, h = '<h2 style="margin-top:0">許容範囲(5章)</h2>';
+  SET_FIELDS.forEach(function (f) { h += '<label class="f"><span>' + f[1] + '</span><input type="number" data-k="' + f[0] + '" step="' + f[2] + '" value="' + s[f[0]] + '"></label>'; });
+  h += '<h2>動作</h2>';
+  h += '<label class="f"><span>音声案内</span><input type="checkbox" data-b="voice"' + (s.voice ? ' checked' : '') + '></label>';
+  h += '<label class="f"><span>重ね表示(T1・T2)</span><select data-s="overlay"><option value="contour">輪郭線</option><option value="blend">半透明</option><option value="none">なし</option></select></label>';
+  h += '<label class="f"><span>半自動(追跡を使わない)</span><input type="checkbox" data-b="semiAuto"' + (s.semiAuto ? ' checked' : '') + '></label>';
+  h += '<label class="f"><span>ピッチの符号を反転</span><input type="checkbox" data-b="pitchInvert"' + (s.pitchInvert ? ' checked' : '') + '></label>';
+  h += '<label class="f"><span>デバッグ表示</span><input type="checkbox" data-b="debug"' + (s.debug ? ' checked' : '') + '></label>';
+  h += '<p class="small mut">半自動: 傾き・静止の条件がそろったら撮り、撮影後に目尻と耳をタップして HRL・高さ・距離・画角を判定します。</p>';
+  $('#setForm').innerHTML = h;
+  $('#setForm').querySelector('[data-s=overlay]').value = s.overlay;
+  $('#setForm').querySelectorAll('input[data-k]').forEach(function (i) { i.onchange = function () { var v = parseFloat(i.value); if (isFinite(v)) { s[i.dataset.k] = v; saveSettings(); } }; });
+  $('#setForm').querySelectorAll('input[data-b]').forEach(function (i) { i.onchange = function () { s[i.dataset.b] = i.checked; saveSettings(); }; });
+  $('#setForm').querySelector('[data-s=overlay]').onchange = function (e) { s.overlay = e.target.value; saveSettings(); };
+  $('#levelInfo').textContent = '現在の補正: ピッチ ' + F(s.pitchOffset, 2) + '°、ロール ' + F(s.rollOffset, 2) + '°' + (S.motion.rawPitch != null ? '(生の値: ピッチ ' + F(S.motion.rawPitch, 2) + '°、ロール ' + F(S.motion.rawRoll, 2) + '°)' : '');
+  $('#camCalInfo').textContent = s.camCalAt ? '校正済み: 横幅 ' + F(s.mmPerWidth, 0) + ' mm(' + s.camCalAt + '、' + s.camCalRes + ')' : '未校正(概算 ' + F(s.mmPerWidth, 0) + ' mm を使用)';
+}
+var settingsFrom = 'start';
+function openSettings(from) { settingsFrom = from; S.paused = true; renderSettings(); show('settings'); }
+function closeSettings() {
+  if (settingsFrom === 'shoot' && S.stream) {
+    if (S.settings.semiAuto && S.tracker) { S.tracker.release(); S.tracker = null; S.pts = null; }
+    $('#selOv').value = S.settings.overlay; updateSessInfo(); backToShoot();
+  } else { show('start'); refreshStart(); }
+}
+
+// ---------- チェックリスト ----------
+var CHECKS = ['三脚にスマホホルダーで横向きに固定し、脚の位置を床のテープの印に合わせた',
+  'レンズから耳の付け根まで 900 mm(床の足の印・メジャーで確認)',
+  'レンズの中心を目尻の高さに合わせた(三脚の高さを記録)',
+  '白または明るい無地の壁から 50 cm 以上離れて立ち、壁に影が出ていない',
+  'いつもと同じ部屋・同じ照明(窓の光を避ける)',
+  '正面の壁の目の高さに注視点の印を貼った',
+  '被写体: 奥歯を軽く噛む、顔の力を抜く、眼鏡を外す',
+  '被写体: 前髪を上げて額を出す、髪を耳にかける、鎖骨まで見える服装'];
+
+// ---------- イベント ----------
+function bind() {
+  $('#checklist').innerHTML = CHECKS.map(function (c, i) { return '<li><label class="row"><input type="checkbox" id="ck' + i + '"> ' + c + '</label></li>'; }).join('');
+  $('#btnStart').onclick = startSession;
+  $('#btnSettings').onclick = function () { openSettings('start'); };
+  $('#btnSettings2').onclick = function () { openSettings('shoot'); };
+  $('#btnSetBack').onclick = closeSettings;
+  $('#btnSetDefault').onclick = function () {
+    if (!confirm('許容範囲などを既定値に戻します(校正の値は残します)。')) return;
+    var keep = { mmPerWidth: S.settings.mmPerWidth, camCalAt: S.settings.camCalAt, camCalRes: S.settings.camCalRes, pitchOffset: S.settings.pitchOffset, rollOffset: S.settings.rollOffset, pitchInvert: S.settings.pitchInvert };
+    S.settings = Object.assign({}, DEFAULT_SETTINGS, keep); saveSettings(); renderSettings();
+  };
+  $('#btnLevelCal').onclick = function () {
+    if (S.motion.rawPitch == null) { alert('センサーの値がありません。撮影画面を開いてから行ってください。'); return; }
+    if (!confirm('水平器で合わせた状態ですか? 今の値を 0° にします。')) return;
+    S.settings.pitchOffset = S.motion.rawPitch; S.settings.rollOffset = S.motion.rawRoll; saveSettings(); renderSettings();
+  };
+  $('#btnLevelReset').onclick = function () { S.settings.pitchOffset = 0; S.settings.rollOffset = 0; saveSettings(); renderSettings(); };
+  $('#btnCamCal').onclick = function () {
+    if (!S.stream) { alert('撮影画面を開いてから行ってください。'); return; }
+    show('shoot'); setTimeout(function () { openEditor('calib'); }, 150);
+  };
+  $('#btnPick').onclick = function () { if (!S.W) return; openEditor('points'); };
+  $('#btn900').onclick = function () {
+    if (S.d0 || S.d0Pending) { if (!confirm('900 mm の基準を取り直しますか?')) return; S.d0 = null; S.d0Pending = false; updateSessInfo(); return; }
+    if (S.settings.semiAuto) { S.d0Pending = true; toast('900 mm 確認済み。撮影した写真の目尻–耳の距離を基準にします。'); updateSessInfo(); return; }
+    if (!S.pts || !S.lastEval || !S.lastEval.conds[3].ok) { alert('先に点を指定し、追跡が正常な状態で押してください。'); return; }
+    S.d0 = Judge.normDist(S.pts.eye, S.pts.ear, S.W, S.H);
+    toast('距離の基準 d0 を記録しました(目尻–耳 = 画像の幅の ' + F(S.d0 * 100, 2) + '%)'); updateSessInfo();
+  };
+  $('#btnArm').onclick = function () { S.armed = !S.armed; S.holdStart = 0; updateArmBtn(); if (S.armed) Voice.say('撮影を始めます。正面の印を見てください', true); };
+  $('#btnManual').onclick = function () { capture('manual'); };
+  $('#selOv').onchange = function (e) { S.settings.overlay = e.target.value; saveSettings(); };
+  $('#btnEnd').onclick = function () { if (confirm('撮影を終了しますか?')) endSession(); };
+  document.querySelectorAll('#edit [data-view]').forEach(function (b) { b.onclick = function () { Ed.setView(b.dataset.view === 'all' ? 'all' : 'active'); Ed.drawRef(); }; });
+  $('#btnZoom').onclick = function () { var z = [2, 4, 8], i = (z.indexOf(Ed.view.zoom) + 1) % z.length; Ed.view.zoom = z[i]; $('#btnZoom').textContent = '×' + z[i]; if (Ed.view.mode === 'all') Ed.setView('active'); else Ed.draw(); Ed.drawRef(); };
+  $('#selCmp').onchange = function () { Ed.draw(); Ed.drawRef(); };
+  $('#btnExportRef').onclick = exportRef;
+  $('#btnImportRefBtn').onclick = function () { $('#fileRef').click(); };
+  $('#fileRef').onchange = function (e) { if (e.target.files[0]) importRef(e.target.files[0]); e.target.value = ''; };
+  $('#btnCsv').onclick = exportCsv;
+  $('#inPid').addEventListener('input', refreshStart);
+  $('#verInfo').textContent = '版 ' + APP_VERSION + ' · 映像と写真は端末内でのみ処理し、外部へ送信しません。';
+  Ed.init();
+}
+
+bind(); refreshStart(); libStatus();
+if (!window.isSecureContext) $('#libStatus').innerHTML = '<span class="ng">https で開いてください(カメラとセンサーは https でしか使えません)</span>';
+loadCV(); loadPose();
+</script>
+</body>
+</html>
