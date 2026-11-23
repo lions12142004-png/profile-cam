@@ -1427,7 +1427,12 @@ function decideCalib() {
 }
 function backToShoot() {
   if (!S.stream) { show('start'); return; }
-  show('shoot'); S.paused = false; S.hist = []; S.diffSnaps = []; loop();
+  show('shoot'); S.paused = false; S.hist = []; S.diffSnaps = [];
+  // 点の指定画面に切り替えている間、映像が止まる・黒くなることがあるため再生し直す
+  var v = $('#video');
+  try { if (v.srcObject !== S.stream) v.srcObject = S.stream; var pr = v.play(); if (pr && pr.catch) pr.catch(function () {}); } catch (e) {}
+  requestWake();
+  loop();
 }
 
 // ---------- 保存 ----------
