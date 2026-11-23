@@ -1172,6 +1172,10 @@ async function capture(mode) {
     S.paused = true;
     if (mode === 'semi' || !cap.eye) { cap.trackNa = mode === 'semi' || !S.tracker; openEditor('semi'); }
     else openEditor('confirm');
+  } catch (err) {
+    console.error(err);
+    alert('撮影の処理でエラーが出ました: ' + (err && err.message ? err.message : err));
+    S.paused = false; backToShoot();
   } finally { S.capturing = false; }
 }
 function evalCap(cap) {
