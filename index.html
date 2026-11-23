@@ -190,7 +190,7 @@ table.cond td.v{font-variant-numeric:tabular-nums;white-space:nowrap}
 // ============================================================
 //  判定ロジック(画面から独立した純粋関数。単体テスト可能)
 // ============================================================
-var APP_VERSION = '1.0.2';
+var APP_VERSION = '1.0.4';
 
 var DEFAULT_SETTINGS = {
   holdSec: 0.7,
@@ -738,16 +738,22 @@ function refineFull(stillCv, frameCv, Tana, stillPts, W, H, aW) {
   var xs = cs.map(function (p) { return p[0]; }), ys = cs.map(function (p) { return p[1]; });
   var R2 = Judge.clipRect(Math.min.apply(null, xs) - 80, Math.min.apply(null, ys) - 80, Math.max.apply(null, xs) - Math.min.apply(null, xs) + 160, Math.max.apply(null, ys) - Math.min.apply(null, ys) + 160, W, H);
   if (R2.w < 20 || R2.h < 20) return null;
-  var A = cropGrayMat(cv, stillCv, R1), B = cropGrayMat(cv, frameCv, R2);
-  var corners = new cv.Mat(), none = new cv.Mat(), out = null;
+  // calcOpticalFlowPyrLK は2枚の画像が同じ大きさである必要があるため、両方を同じ枠(R1 と R2 を囲む枠)で切り出す
+  var bx0 = Math.min(R1.x, R2.x), by0 = Math.min(R1.y, R2.y);
+  var Rb = Judge.clipRect(bx0, by0, Math.max(R1.x + R1.w, R2.x + R2.w) - bx0, Math.max(R1.y + R1.h, R2.y + R2.h) - by0, W, H);
+  var A = cropGrayMat(cv, stillCv, Rb), B = cropGrayMat(cv, frameCv, Rb);
+  var mask = cv.Mat.zeros(Rb.h, Rb.w, cv.CV_8UC1), corners = new cv.Mat(), out = null;
+  var mats = [];
   try {
-    cv.goodFeaturesToTrack(A, corners, 300, 0.003, 8, none, 7, false, 0.04);
+    var sub = mask.roi(new cv.Rect(R1.x - Rb.x, R1.y - Rb.y, R1.w, R1.h)); sub.setTo(new cv.Scalar(255)); sub.delete();
+    cv.goodFeaturesToTrack(A, corners, 300, 0.003, 8, mask, 7, false, 0.04);
     var N = corners.rows; if (N < 10) return null;
     var kp = Float32Array.from(corners.data32F.subarray(0, N * 2)), guess = [], i;   // WASM のメモリが増えても壊れないよう複製
-    for (i = 0; i < N; i++) { var g = Judge.applySim(T, kp[2 * i] + R1.x, kp[2 * i + 1] + R1.y); guess.push(g[0] - R2.x, g[1] - R2.y); }
-    var p0 = cv.matFromArray(N, 1, cv.CV_32FC2, Array.from(kp.subarray(0, N * 2)));
+    for (i = 0; i < N; i++) { var g = Judge.applySim(T, kp[2 * i] + Rb.x, kp[2 * i + 1] + Rb.y); guess.push(g[0] - Rb.x, g[1] - Rb.y); }
+    var p0 = cv.matFromArray(N, 1, cv.CV_32FC2, Array.from(kp));
     var p1 = cv.matFromArray(N, 1, cv.CV_32FC2, guess), st = new cv.Mat(), er = new cv.Mat();
-    var pb = cv.matFromArray(N, 1, cv.CV_32FC2, Array.from(kp.subarray(0, N * 2))), st2 = new cv.Mat(), er2 = new cv.Mat();
+    var pb = cv.matFromArray(N, 1, cv.CV_32FC2, Array.from(kp)), st2 = new cv.Mat(), er2 = new cv.Mat();
+    mats = [p0, p1, st, er, pb, st2, er2];
     var win = new cv.Size(31, 31), crit = new cv.TermCriteria(cv.TERM_CRITERIA_EPS | cv.TERM_CRITERIA_COUNT, 30, 0.01);
     var flag = (cv.OPTFLOW_USE_INITIAL_FLOW !== undefined) ? cv.OPTFLOW_USE_INITIAL_FLOW : 4;
     cv.calcOpticalFlowPyrLK(A, B, p0, p1, st, er, win, 4, crit, flag);
@@ -756,14 +762,16 @@ function refineFull(stillCv, frameCv, Tana, stillPts, W, H, aW) {
     for (i = 0; i < N; i++) {
       if (!st.data[i] || !st2.data[i]) continue;
       if (Math.hypot(b[2 * i] - kp[2 * i], b[2 * i + 1] - kp[2 * i + 1]) > 1.5) continue;
-      P.push(kp[2 * i] + R1.x, kp[2 * i + 1] + R1.y); Q.push(q[2 * i] + R2.x, q[2 * i + 1] + R2.y);
+      P.push(kp[2 * i] + Rb.x, kp[2 * i + 1] + Rb.y); Q.push(q[2 * i] + Rb.x, q[2 * i + 1] + Rb.y);
     }
-    [p0, p1, st, er, pb, st2, er2].forEach(function (m) { m.delete(); });
     var RS = Judge.ransacSim(P, Q, P.length / 2, 3.0, 150);
     if (!RS) return null;
     var e2 = Judge.applySim(RS.T, eA[0], eA[1]), r2 = Judge.applySim(RS.T, rA[0], rA[1]);
     out = { eye: { x: e2[0] / W, y: e2[1] / H }, ear: { x: r2[0] / W, y: r2[1] / H }, inliers: RS.inliers.length, err: RS.err };
-  } finally { A.delete(); B.delete(); corners.delete(); none.delete(); }
+  } finally {
+    mats.forEach(function (m) { try { m.delete(); } catch (e) {} });
+    A.delete(); B.delete(); mask.delete(); corners.delete();
+  }
   return out;
 }
 
@@ -1117,8 +1125,44 @@ function updateArmBtn() {
 
 // ---------- 撮影 ----------
 function grabFull() {
-  var v = $('#video'), c = mkCanvas(v.videoWidth, v.videoHeight);
-  c.getContext('2d').drawImage(v, 0, 0); return c;
+  var v = $('#video');
+  try {
+    var c = mkCanvas(v.videoWidth, v.videoHeight);
+    c.getContext('2d').drawImage(v, 0, 0); return c;
+  } catch (e) {
+    // メモリ不足などで最大解像度の画像を作れないときは、横幅 1920 で取り込む
+    console.warn('grabFull', e);
+    var w = Math.min(1920, v.videoWidth), h = Math.round(w * v.videoHeight / v.videoWidth), c2 = mkCanvas(w, h);
+    c2.getContext('2d').drawImage(v, 0, 0, w, h); return c2;
+  }
+}
+
+// どんな処理エラーが出ても、撮れた画像だけはそのまま保存する(手動撮影の最後の手段)
+async function saveRaw(canvas, mode, errMsg, motionAt) {
+  var sess = S.sess, now = new Date();
+  var fname = sess.pid + '_' + sess.tp + '_' + stamp(now) + '.jpg';
+  var blob = await new Promise(function (res) { canvas.toBlob(res, 'image/jpeg', 0.95); });
+  if (!blob) { alert('画像を作れませんでした。もう一度撮影してください。'); return; }
+  var file = new File([blob], fname, { type: 'image/jpeg' }), shared = false;
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: fname }); shared = true; }
+    catch (e) { if (e && e.name === 'AbortError') { toast('保存をキャンセルしました'); return; } }
+  }
+  if (!shared) {
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = fname; document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 5000);
+  }
+  try {
+    await DB.put('records', {
+      pid: sess.pid, tp: sess.tp, datetime: isoLocal(now), filename: fname,
+      mode: (mode === 'auto' ? '自動' : (mode === 'semi' ? '半自動' : '手動')) + '(処理エラーのためそのまま保存)',
+      failed: '処理エラー: ' + errMsg, allOk: false,
+      width: canvas.width, height: canvas.height, orientAngle: getAngle(), faceDir: sess.faceDir, tripodMemo: sess.tripodMemo,
+      pitch: motionAt ? motionAt.pitch : S.motion.pitch, roll: motionAt ? motionAt.roll : S.motion.roll,
+      settings: JSON.stringify(S.settings), appVersion: APP_VERSION
+    });
+  } catch (e) { console.warn('record', e); }
+  toast('写真をそのまま保存しました(点と条件の判定はなし)', 3500);
 }
 async function capture(mode) {
   if (S.capturing) return;
@@ -1131,13 +1175,17 @@ async function capture(mode) {
     var best = null, bestSharp = -1, motionAt = null;
     for (var i = 0; i < 3; i++) {
       var c = grabFull();
-      var r = { x: Math.round(roiN.x * W), y: Math.round(roiN.y * H), w: Math.round(roiN.w * W), h: Math.round(roiN.h * H) };
-      var g = Judge.toGray(c.getContext('2d', { willReadFrequently: true }).getImageData(r.x, r.y, r.w, r.h).data, r.w * r.h, new Uint8Array(r.w * r.h));
-      var sv = Judge.lapVar(g, r.w, { x: 0, y: 0, w: r.w, h: r.h }) || 0;
-      if (sv > bestSharp) { bestSharp = sv; best = c; }
-      if (i === 0) motionAt = { pitch: S.motion.pitch, roll: S.motion.roll, rot: S.motion.rot };
+      if (i === 0) { best = c; motionAt = { pitch: S.motion.pitch, roll: S.motion.roll, rot: S.motion.rot }; }
+      try {
+        var cw = c.width, ch = c.height;
+        var r = { x: Math.round(roiN.x * cw), y: Math.round(roiN.y * ch), w: Math.round(roiN.w * cw), h: Math.round(roiN.h * ch) };
+        var g = Judge.toGray(c.getContext('2d', { willReadFrequently: true }).getImageData(r.x, r.y, r.w, r.h).data, r.w * r.h, new Uint8Array(r.w * r.h));
+        var sv = Judge.lapVar(g, r.w, { x: 0, y: 0, w: r.w, h: r.h }) || 0;
+        if (sv > bestSharp) { bestSharp = sv; best = c; }
+      } catch (e) { console.warn('sharpness', e); }
       if (i < 2) await sleep(100);
     }
+    W = best.width; H = best.height;   // 縮小して取り込んだ場合に合わせる
     var cap = {
       mode: mode, canvas: best, W: W, H: H, time: new Date(),
       pitch: motionAt.pitch, roll: motionAt.roll, rotRate: motionAt.rot,
@@ -1154,9 +1202,15 @@ async function capture(mode) {
       // 点は確認画面(またはその前の点の指定)で決める
       if (S.pts && S.tracker) { cap.eye = S.pts.eye; cap.ear = S.pts.ear; cap.track = S.lastInp && S.lastInp.track; }
     } else {
-      var rf = refineFull(S.stillCanvas, best, S.tracker.T, S.stillPts, W, H, S.aW);
+      var rf = null;
+      try { rf = refineFull(S.stillCanvas, best, S.tracker.T, S.stillPts, W, H, S.aW); }
+      catch (e) { console.warn('refineFull', e); cap.refineError = cvErrMsg(e); }
       if (rf) { cap.eye = rf.eye; cap.ear = rf.ear; cap.track = { inliers: rf.inliers, err: rf.err * S.aW / W, errFull: rf.err }; cap.refined = true; }
-      else { cap.eye = S.pts.eye; cap.ear = S.pts.ear; cap.track = { inliers: 0, err: 99 }; }
+      else {
+        // 位置合わせし直せなかったときは、直前の追跡の結果を使う
+        cap.eye = S.pts.eye; cap.ear = S.pts.ear;
+        cap.track = (S.lastInp && S.lastInp.track) ? S.lastInp.track : { inliers: 0, err: 99 };
+      }
     }
     if (mode === 'auto') {
       var R = evalCap(cap);
@@ -1174,9 +1228,24 @@ async function capture(mode) {
     else openEditor('confirm');
   } catch (err) {
     console.error(err);
-    alert('撮影の処理でエラーが出ました: ' + (err && err.message ? err.message : err));
+    var msg = cvErrMsg(err);
     S.paused = false; backToShoot();
+    if (best && mode !== 'auto') {
+      S.capturing = false;
+      if (confirm('撮影の処理でエラーが出ました: ' + msg + '\n\n写真は撮れています。点と条件の判定なしで、このまま保存しますか?')) {
+        try { await saveRaw(best, mode, msg, motionAt); } catch (e2) { alert('保存できませんでした: ' + cvErrMsg(e2)); }
+      }
+    } else {
+      alert('撮影の処理でエラーが出ました: ' + msg);
+    }
   } finally { S.capturing = false; }
+}
+// OpenCV.js は C++ のエラーを数字で投げるので、読める文に直す
+function cvErrMsg(e) {
+  if (typeof e === 'number' && LIB.cv && typeof LIB.cv.exceptionFromPtr === 'function') {
+    try { var x = LIB.cv.exceptionFromPtr(e); if (x && x.msg) return 'OpenCV: ' + x.msg; } catch (z) {}
+  }
+  return (e && e.message) ? e.message : String(e);
 }
 function evalCap(cap) {
   if (cap.eye) {
@@ -1361,7 +1430,16 @@ function openEditor(kind) {
     $('#edDef').innerHTML = kind === 'semi' ? DEF_TEXT : '点がずれていればドラッグで直せます(直したことは記録されます)。';
     if (S.ref) $('#edCmpBox').style.display = '';
     btns.innerHTML = '<button class="primary full" id="edOk">保存する</button><button class="full" id="edCancel">撮り直す</button>';
-    $('#edOk').onclick = saveCapture; $('#edCancel').onclick = function () { S.cap = null; backToShoot(); };
+    $('#edOk').onclick = function () {
+      saveCapture().catch(async function (err) {
+        console.error(err);
+        var msg = cvErrMsg(err), c = S.cap;
+        if (c && c.canvas && confirm('保存の処理でエラーが出ました: ' + msg + '\n\n判定の値なしで、写真だけ保存しますか?')) {
+          try { await saveRaw(c.canvas, c.mode, msg, { pitch: c.pitch, roll: c.roll }); S.cap = null; backToShoot(); }
+          catch (e2) { alert('保存できませんでした: ' + cvErrMsg(e2)); }
+        }
+      });
+    }; $('#edCancel').onclick = function () { S.cap = null; backToShoot(); };
     Ed.extra = extraConfirm; Ed.onChange = confirmInfo; confirmInfo();
   }
   Ed.renderSeg();
@@ -1404,7 +1482,7 @@ function confirmInfo() {
   var R = evalCap(cap);
   var bad = R.conds.filter(function (c) { return c.bad; });
   var mode = cap.mode === 'auto' ? '自動' : (cap.mode === 'semi' ? '半自動' : '手動');
-  $('#edInfo').innerHTML = '撮影方式: ' + mode + (cap.edited ? ' · <span class="warn">点を修正</span>' : '') + (cap.refined ? ' · 最大解像度で位置合わせ済み' : '') +
+  $('#edInfo').innerHTML = '撮影方式: ' + mode + (cap.edited ? ' · <span class="warn">点を修正</span>' : '') + (cap.refined ? ' · 最大解像度で位置合わせ済み' : '') + (cap.refineError ? '<br><span class="warn">位置合わせし直せなかったため、追跡の点を使っています(' + cap.refineError + ')</span>' : '') +
     (bad.length ? '<br><span class="ng">外れている条件: ' + bad.map(function (c) { return c.label; }).join('、') + '</span><br><span class="warn">案内: ' + R.guide.text + '</span>' : '<br><span class="ok">すべての条件を満たしています</span>');
   $('#edCond').innerHTML = condRows(R.conds);
   Ed.drawRef();
